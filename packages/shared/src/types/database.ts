@@ -14,6 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_reason: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          ends_at: string
+          id: string
+          internal_notes: string | null
+          organization_id: string
+          party_size: number
+          seated_at: string | null
+          source: Database["public"]["Enums"]["booking_source"]
+          special_request: string | null
+          starts_at: string
+          status: Database["public"]["Enums"]["booking_status"]
+          table_id: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          ends_at: string
+          id?: string
+          internal_notes?: string | null
+          organization_id: string
+          party_size: number
+          seated_at?: string | null
+          source: Database["public"]["Enums"]["booking_source"]
+          special_request?: string | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          table_id: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          ends_at?: string
+          id?: string
+          internal_notes?: string | null
+          organization_id?: string
+          party_size?: number
+          seated_at?: string | null
+          source?: Database["public"]["Enums"]["booking_source"]
+          special_request?: string | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          table_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           birth_date: string | null
@@ -76,28 +168,34 @@ export type Database = {
       }
       organizations: {
         Row: {
+          address: string | null
           created_at: string
           id: string
           logo_url: string | null
           name: string
+          operating_hours: string | null
           slug: string
           timezone: string
           updated_at: string
         }
         Insert: {
+          address?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null
           name: string
+          operating_hours?: string | null
           slug: string
           timezone?: string
           updated_at?: string
         }
         Update: {
+          address?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null
           name?: string
+          operating_hours?: string | null
           slug?: string
           timezone?: string
           updated_at?: string
@@ -151,6 +249,50 @@ export type Database = {
           },
         ]
       }
+      tables: {
+        Row: {
+          capacity: number
+          code: string
+          created_at: string
+          floor_area: string | null
+          id: string
+          is_active: boolean
+          organization_id: string
+          status: Database["public"]["Enums"]["table_status"]
+          updated_at: string
+        }
+        Insert: {
+          capacity: number
+          code: string
+          created_at?: string
+          floor_area?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          status?: Database["public"]["Enums"]["table_status"]
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number
+          code?: string
+          created_at?: string
+          floor_area?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          status?: Database["public"]["Enums"]["table_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tables_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -169,7 +311,21 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
+      booking_source: "manual" | "walk_in"
+      booking_status:
+        | "pending"
+        | "confirmed"
+        | "seated"
+        | "completed"
+        | "cancelled"
+        | "no_show"
       profile_status: "active" | "suspended"
+      table_status:
+        | "available"
+        | "reserved"
+        | "occupied"
+        | "cleaning"
+        | "unavailable"
       user_role: "admin" | "front_desk" | "customer_service"
     }
     CompositeTypes: {
@@ -298,7 +454,23 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      booking_source: ["manual", "walk_in"],
+      booking_status: [
+        "pending",
+        "confirmed",
+        "seated",
+        "completed",
+        "cancelled",
+        "no_show",
+      ],
       profile_status: ["active", "suspended"],
+      table_status: [
+        "available",
+        "reserved",
+        "occupied",
+        "cleaning",
+        "unavailable",
+      ],
       user_role: ["admin", "front_desk", "customer_service"],
     },
   },
