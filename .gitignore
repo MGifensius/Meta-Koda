@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+dist/
+build/
+out/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.vercel/
+.superpowers/
+.DS_Store
+*.log
+supabase/.branches/
+supabase/.temp/

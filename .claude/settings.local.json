@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:/Users/10105960/.claude/skills/brainstorming/scripts/start-server.sh\" --project-dir \"c:/Users/10105960/Desktop/buranchi-koda\")",
+      "Bash([ -f \"$SESSION_DIR/state/server-info\" ])"
+    ]
+  }
+}
