@@ -8,7 +8,7 @@ const buttonStyles = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-fg text-white hover:bg-fg/90',
+        primary: 'bg-surface text-fg border border-fg hover:bg-canvas',
         accent: 'bg-accent text-white hover:bg-accent/90',
         outline: 'bg-surface text-fg border border-border hover:bg-canvas',
         ghost: 'bg-transparent text-fg hover:bg-canvas',
