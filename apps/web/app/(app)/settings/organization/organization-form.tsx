@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button, Input, Textarea, FormField } from '@buranchi/ui';
 import { OrganizationUpdateSchema, type OrganizationUpdate } from '@buranchi/shared';
 import { updateOrganizationAction } from './actions';
+import { OperatingHoursEditor } from '@/components/operating-hours-editor';
 
 export function OrganizationForm({ defaults }: { defaults: OrganizationUpdate }) {
   const [pending, startTransition] = React.useTransition();
@@ -60,14 +61,11 @@ export function OrganizationForm({ defaults }: { defaults: OrganizationUpdate })
         >
           <Textarea id="address" {...form.register('address')} placeholder="Jl. Sudirman No. 1, Jakarta" />
         </FormField>
-        <FormField
-          id="operating_hours"
-          label="Operating hours"
-          hint="When the restaurant is open"
-          {...(form.formState.errors.operating_hours?.message ? { error: form.formState.errors.operating_hours.message } : {})}
-        >
-          <Textarea id="operating_hours" {...form.register('operating_hours')} placeholder="Mon–Fri 11:00–22:00\nSat–Sun 10:00–23:00" />
-        </FormField>
+        <div>
+          <p className="text-[12px] font-medium text-fg mb-1.5">Operating hours</p>
+          <p className="text-[11px] text-muted mb-2">When the restaurant is open. Used by booking and AI assistant features.</p>
+          <OperatingHoursEditor name="operating_hours" />
+        </div>
         {error ? <p className="text-[12px] text-danger">{error}</p> : null}
         {saved ? <p className="text-[12px] text-success">Saved.</p> : null}
         <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save'}</Button>
