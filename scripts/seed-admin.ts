@@ -1,5 +1,7 @@
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+
+loadEnv({ path: '.env.local' });
 
 async function main() {
   const arg = process.argv.find((a) => a.startsWith('email='));
