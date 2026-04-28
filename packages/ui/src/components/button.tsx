@@ -16,8 +16,8 @@ const buttonStyles = cva(
       },
       size: {
         sm: 'h-8 px-3 text-[12px]',
-        md: 'h-9 px-4 text-[13px]',
-        lg: 'h-10 px-5 text-[14px]',
+        md: 'h-9 px-4 text-[12px]',
+        lg: 'h-10 px-5 text-[12px]',
       },
     },
     defaultVariants: { variant: 'primary', size: 'md' },
