@@ -10,10 +10,22 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const { id } = await params;
   const supabase = await createServerClient();
 
-  const { data: c } = await supabase.from('customers')
+  const { data } = await supabase.from('customers')
     .select('id, display_id, full_name, phone, email, birth_date, notes, tags, created_at')
     .eq('id', id)
     .single();
+  type CustomerDetail = {
+    id: string;
+    display_id: string;
+    full_name: string;
+    phone: string | null;
+    email: string | null;
+    birth_date: string | null;
+    notes: string | null;
+    tags: string[] | null;
+    created_at: string;
+  };
+  const c = data as CustomerDetail | null;
   if (!c) notFound();
 
   return (

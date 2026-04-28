@@ -9,8 +9,17 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
   await requireRole(['admin', 'front_desk', 'customer_service']);
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data: c } = await supabase.from('customers')
+  const { data } = await supabase.from('customers')
     .select('full_name, phone, email, birth_date, notes, tags').eq('id', id).single();
+  type CustomerEditRow = {
+    full_name: string;
+    phone: string | null;
+    email: string | null;
+    birth_date: string | null;
+    notes: string | null;
+    tags: string[] | null;
+  };
+  const c = data as CustomerEditRow | null;
   if (!c) notFound();
 
   const defaults: CustomerInput = {

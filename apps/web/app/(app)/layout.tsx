@@ -6,8 +6,9 @@ import { AppSidebar } from '@/components/app-sidebar';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
   const supabase = await createServerClient();
-  const { data: org } = await supabase
+  const { data } = await supabase
     .from('organizations').select('name').eq('id', profile.organization_id).single();
+  const org = data as { name: string } | null;
   if (!org) redirect('/login');
 
   return (

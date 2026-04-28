@@ -22,7 +22,15 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
 
   const { data, error } = await query;
   if (error) throw error;
-  const rows: CustomerRow[] = (data ?? []).map((c) => ({
+  type CustomerListRow = {
+    id: string;
+    display_id: string;
+    full_name: string;
+    phone: string | null;
+    tags: string[] | null;
+    created_at: string;
+  };
+  const rows: CustomerRow[] = ((data ?? []) as CustomerListRow[]).map((c) => ({
     id: c.id,
     display_id: c.display_id,
     full_name: c.full_name,

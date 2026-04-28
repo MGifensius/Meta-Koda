@@ -12,7 +12,7 @@ export async function updateCustomerAction(id: string, input: unknown) {
   const parsed = CustomerInputSchema.parse(input);
 
   const supabase = await createServerClient();
-  const { error } = await supabase.from('customers').update(parsed).eq('id', id);
+  const { error } = await supabase.from('customers').update(parsed as never).eq('id', id);
   if (error) {
     if (error.code === '23505' && error.message.includes('phone')) {
       throw new ActionError('PHONE_TAKEN', 'A customer with this phone already exists.');

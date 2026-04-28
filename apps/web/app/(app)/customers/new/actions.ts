@@ -12,13 +12,14 @@ export async function createCustomerAction(input: unknown) {
   const parsed = CustomerInputSchema.parse(input) as CustomerInput;
 
   const supabase = await createServerClient();
+  const insertPayload = {
+    ...parsed,
+    organization_id: profile.organization_id,
+    created_by: profile.id,
+  };
   const { data, error } = await supabase
     .from('customers')
-    .insert({
-      ...parsed,
-      organization_id: profile.organization_id,
-      created_by: profile.id,
-    })
+    .insert(insertPayload as never)
     .select('id')
     .single();
 
@@ -29,6 +30,7 @@ export async function createCustomerAction(input: unknown) {
     throw new ActionError(error.code ?? 'DB', error.message);
   }
 
+  const inserted = data as { id: string } | null;
   revalidatePath('/customers');
-  redirect(`/customers/${data.id}`);
+  redirect(`/customers/${inserted?.id ?? ''}`);
 }

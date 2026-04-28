@@ -18,7 +18,7 @@ export function AppSidebar({ profile, organizationName }: { profile: Profile; or
             const Icon = item.icon;
             const active = !item.comingSoon && pathname.startsWith(item.href);
             const node = (
-              <SidebarItem icon={<Icon className="h-4 w-4" />} active={active} disabled={item.comingSoon}>
+              <SidebarItem icon={<Icon className="h-4 w-4" />} active={active} disabled={item.comingSoon ?? false}>
                 {item.label}
               </SidebarItem>
             );
