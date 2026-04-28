@@ -13,31 +13,80 @@ async function main() {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  if (!url || !serviceKey) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  }
 
   const admin = createClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
   const { data: org, error: orgErr } = await admin
-    .from('organizations').select('id, name').eq('slug', 'buranchi').single();
-  if (orgErr || !org) throw orgErr ?? new Error('Buranchi organization not found. Run pnpm db:reset first.');
+    .from('organizations')
+    .select('id, name')
+    .eq('slug', 'buranchi')
+    .single();
+  if (orgErr || !org) {
+    throw orgErr ?? new Error('Buranchi organization not found.');
+  }
 
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      organization_id: org.id,
-      full_name: email.split('@')[0],
-      role: 'admin',
-    },
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/auth/callback?next=/accept-invite`,
-  });
-  if (error) throw error;
+  // Check whether this email already has an auth user.
+  const { data: list, error: listErr } = await admin.auth.admin.listUsers();
+  if (listErr) throw listErr;
+  const existing = list.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
 
-  console.log(`Invite sent to ${email}.`);
-  console.log(`User id: ${data.user?.id ?? '(no id returned)'}`);
+  let action: 'invite' | 'recovery';
+  let actionResult;
+
+  if (existing) {
+    action = 'recovery';
+    console.log(`User ${email} already exists (id: ${existing.id}). Generating a recovery link.`);
+    actionResult = await admin.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+    });
+  } else {
+    action = 'invite';
+    console.log(`Inviting new admin: ${email}`);
+    actionResult = await admin.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: {
+        data: {
+          organization_id: org.id,
+          full_name: email.split('@')[0],
+          role: 'admin',
+        },
+      },
+    });
+  }
+
+  if (actionResult.error) throw actionResult.error;
+
+  const props = actionResult.data?.properties;
+  const tokenHash = props?.hashed_token;
+  const type = props?.verification_type ?? action;
+  if (!tokenHash) {
+    throw new Error('No hashed_token returned from generateLink. Cannot construct direct URL.');
+  }
+
+  const directLink = `${appUrl}/api/auth/callback?token_hash=${tokenHash}&type=${type}&next=/accept-invite`;
+
+  console.log('');
+  console.log('───────────────────────────────────────────────────────────────');
+  console.log(`  Action: ${action === 'invite' ? 'New admin invite' : 'Recovery (set new password)'}`);
+  console.log(`  Email:  ${email}`);
+  console.log('');
+  console.log('  Open this link in your browser to set your password:');
+  console.log('');
+  console.log(`  ${directLink}`);
+  console.log('───────────────────────────────────────────────────────────────');
+  console.log('');
+  console.log('(This link bypasses email entirely. It is single-use and expires in 24h.)');
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error('seed:admin failed:', err);
   process.exit(1);
 });
