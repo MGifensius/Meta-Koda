@@ -10,7 +10,7 @@ import { loginAction } from './actions';
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} className="w-full h-11">
+    <Button type="submit" disabled={pending} className="w-full">
       {pending ? 'Signing in…' : 'Get Started'}
     </Button>
   );
