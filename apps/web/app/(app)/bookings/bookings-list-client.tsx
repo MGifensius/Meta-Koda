@@ -199,33 +199,89 @@ interface FilterSelectProps {
 }
 
 function FilterSelect({ icon, label, value, active, onChange, options }: FilterSelectProps) {
+  const [open, setOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.value === value);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
   return (
-    <label
-      className={cn(
-        'relative inline-flex items-center gap-1.5 h-7 rounded-pill border px-2.5 text-[11px] font-medium cursor-pointer transition-colors',
-        active
-          ? 'border-accent/30 bg-accent-soft text-accent'
-          : 'border-row-divider bg-canvas text-fg hover:border-border',
-      )}
-    >
-      <span className={active ? 'text-accent' : 'text-muted'}>{icon}</span>
-      <span className={active ? 'text-accent' : 'text-muted'}>{label}:</span>
-      <span className="font-semibold">{current?.label ?? '—'}</span>
-      <ChevronDown className={cn('h-3 w-3', active ? 'text-accent' : 'text-muted')} />
-      <select
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 opacity-0 cursor-pointer"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'inline-flex items-center gap-1.5 h-7 rounded-pill border px-2.5 text-[11px] font-medium cursor-pointer transition-colors',
+          active
+            ? 'border-accent/30 bg-accent-soft text-accent'
+            : 'border-row-divider bg-canvas text-fg hover:border-border',
+        )}
       >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
+        <span className={active ? 'text-accent' : 'text-muted'}>{icon}</span>
+        <span className={active ? 'text-accent' : 'text-muted'}>{label}:</span>
+        <span className="font-semibold">{current?.label ?? '—'}</span>
+        <ChevronDown
+          className={cn(
+            'h-3 w-3 transition-transform',
+            active ? 'text-accent' : 'text-muted',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-label={label}
+          className="absolute top-full left-0 mt-1 z-30 min-w-[180px] rounded-card border border-border bg-surface shadow-popover py-1 overflow-hidden"
+        >
+          {options.map((o) => {
+            const selected = o.value === value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  'w-full text-left px-3 py-1.5 text-[12px] inline-flex items-center justify-between gap-2 transition-colors',
+                  selected ? 'bg-accent-soft text-accent font-semibold' : 'text-fg hover:bg-canvas',
+                )}
+              >
+                <span>{o.label}</span>
+                {selected ? (
+                  <span aria-hidden className="text-accent">
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
