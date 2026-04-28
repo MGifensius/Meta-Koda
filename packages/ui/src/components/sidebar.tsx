@@ -17,9 +17,9 @@ export function SidebarLogo({ children, className }: { children: React.ReactNode
 
 export function SidebarSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="px-2 mt-2">
-      <p className="text-label text-muted uppercase px-3 pb-1">{label}</p>
-      <div className="flex flex-col gap-0.5">{children}</div>
+    <div className="px-2 mt-4">
+      <p className="text-label text-muted uppercase px-3 pb-1.5">{label}</p>
+      <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
 }
@@ -35,7 +35,7 @@ export function SidebarItem({ icon, active, disabled, children, className, ...re
   return (
     <div
       className={cn(
-        'flex items-center gap-2.5 px-3 py-2 rounded-input text-[13px] transition-colors',
+        'flex items-center gap-2.5 px-3 py-2.5 rounded-input text-[13px] transition-colors',
         active && 'bg-fg text-white font-medium',
         !active && !disabled && 'text-fg hover:bg-canvas cursor-pointer',
         disabled && 'text-border cursor-not-allowed',
