@@ -1,4 +1,13 @@
-import { LayoutGrid, Users, Calendar, MessageCircle, Star, Megaphone, Settings } from 'lucide-react';
+import {
+  LayoutGrid,
+  Map,
+  Users,
+  Calendar,
+  MessageCircle,
+  Star,
+  Megaphone,
+  Settings,
+} from 'lucide-react';
 import type { ComponentType, SVGProps } from 'react';
 import type { UserRole } from '@buranchi/shared';
 
@@ -15,13 +24,14 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Workspace',
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+      { label: 'Floor', href: '/floor', icon: Map },
       { label: 'Customers', href: '/customers', icon: Users },
+      { label: 'Bookings', href: '/bookings', icon: Calendar },
     ],
   },
   {
     label: 'Coming Soon',
     items: [
-      { label: 'Bookings', href: '#', icon: Calendar, comingSoon: true },
       { label: 'WhatsApp', href: '#', icon: MessageCircle, comingSoon: true },
       { label: 'Loyalty', href: '#', icon: Star, comingSoon: true },
       { label: 'Marketing', href: '#', icon: Megaphone, comingSoon: true },
@@ -29,9 +39,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: 'Settings',
-    items: [
-      { label: 'Settings', href: '/settings', icon: Settings },
-    ],
+    items: [{ label: 'Settings', href: '/settings', icon: Settings }],
   },
 ];
 
