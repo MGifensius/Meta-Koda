@@ -27,7 +27,7 @@ export default async function SettingsPage() {
             initialUrl={profile.avatar_url}
             initials={profile.full_name}
           />
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-body">
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[12px]">
             <Field label="Email" value={profile.email ?? <span className="text-border">—</span>} />
             <Field label="Role" value={ROLE_LABELS[profile.role]} />
           </div>
