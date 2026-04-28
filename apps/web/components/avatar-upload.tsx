@@ -1,0 +1,120 @@
+'use client';
+
+import * as React from 'react';
+import { Upload, Trash2 } from 'lucide-react';
+import { Button, UserAvatar } from '@buranchi/ui';
+import { createClient } from '@/lib/supabase/browser';
+import { updateAvatarAction } from '@/app/(app)/settings/profile-actions';
+
+const ACCEPTED = 'image/png,image/jpeg,image/gif,image/webp';
+const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+
+export function AvatarUpload({
+  userId,
+  initialUrl,
+  initials,
+}: {
+  userId: string;
+  initialUrl: string | null;
+  initials: string;
+}) {
+  const [url, setUrl] = React.useState<string | null>(initialUrl);
+  const [pending, setPending] = React.useState<'upload' | 'remove' | null>(null);
+  const [error, setError] = React.useState<string | undefined>();
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError(undefined);
+
+    if (file.size > MAX_SIZE_BYTES) {
+      setError('Image must be 2MB or smaller.');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setError('Only PNG, JPEG, GIF, or WebP allowed.');
+      return;
+    }
+
+    setPending('upload');
+    try {
+      const supabase = createClient();
+      const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : 'png';
+      const path = `${userId}/avatar-${Date.now()}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, cacheControl: '3600' });
+      if (uploadErr) throw uploadErr;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      const publicUrl = data.publicUrl;
+
+      await updateAvatarAction(publicUrl);
+      setUrl(publicUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed.');
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function onRemove() {
+    setError(undefined);
+    setPending('remove');
+    try {
+      await updateAvatarAction(null);
+      setUrl(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Remove failed.');
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative">
+        <UserAvatar src={url} initials={initials} size="lg" className="h-16 w-16 text-[18px]" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={pending !== null}
+            onClick={() => inputRef.current?.click()}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span>{pending === 'upload' ? 'Uploading…' : 'Change image'}</span>
+          </Button>
+          {url ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={pending !== null}
+              onClick={onRemove}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{pending === 'remove' ? 'Removing…' : 'Remove'}</span>
+            </Button>
+          ) : null}
+        </div>
+        <p className="text-[11px] text-muted">
+          PNG, JPEG, GIF or WebP — up to 2MB
+        </p>
+        {error ? <p className="text-[12px] text-danger">{error}</p> : null}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPTED}
+        className="hidden"
+        onChange={onFileChange}
+      />
+    </div>
+  );
+}

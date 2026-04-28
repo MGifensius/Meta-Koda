@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { ProfileSelfUpdateSchema } from '@buranchi/shared';
 import { requireProfile } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -16,6 +17,21 @@ export async function updateOwnProfileAction(input: unknown) {
       full_name: parsed.full_name,
       avatar_url: parsed.avatar_url ?? null,
     } as never)
+    .eq('id', profile.id);
+  if (error) throw new ActionError(error.code ?? 'DB', error.message);
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+const AvatarUrlSchema = z.string().url().nullable();
+
+export async function updateAvatarAction(avatarUrl: string | null) {
+  const profile = await requireProfile();
+  const parsed = AvatarUrlSchema.parse(avatarUrl);
+
+  const supabase = await createServerClient();
+  const { error } = await supabase.from('profiles')
+    .update({ avatar_url: parsed } as never)
     .eq('id', profile.id);
   if (error) throw new ActionError(error.code ?? 'DB', error.message);
   revalidatePath('/settings');
