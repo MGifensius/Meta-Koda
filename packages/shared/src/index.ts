@@ -1,9 +1,16 @@
 export * from './enums/role.js';
 export * from './enums/profile-status.js';
+export * from './enums/booking-status.js';
+export * from './enums/booking-source.js';
+export * from './enums/table-status.js';
 export * from './utils/phone.js';
 export * from './utils/operating-hours.js';
+export * from './utils/derive-table-status.js';
+export * from './constants/booking-rules.js';
 export * from './schemas/customer.js';
 export * from './schemas/organization.js';
 export * from './schemas/profile.js';
 export * from './schemas/invite.js';
+export * from './schemas/booking.js';
+export * from './schemas/table.js';
 export type { Database } from './types/database.js';
