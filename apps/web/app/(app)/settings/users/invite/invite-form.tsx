@@ -67,7 +67,7 @@ export function InviteForm() {
               required
               {...(form.formState.errors.role?.message ? { error: form.formState.errors.role.message } : {})}
             >
-              <select id="role" className="h-9 w-full rounded-input border border-border bg-surface px-3 text-[12px] text-fg" {...form.register('role')}>
+              <select id="role" className="h-8 w-full rounded-input border border-border bg-surface px-3 text-[12px] text-fg" {...form.register('role')}>
                 {USER_ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
               </select>
             </FormField>
