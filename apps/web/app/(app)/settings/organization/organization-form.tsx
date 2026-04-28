@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Button, Input, FormField } from '@buranchi/ui';
+import { Button, Input, Textarea, FormField } from '@buranchi/ui';
 import { OrganizationUpdateSchema, type OrganizationUpdate } from '@buranchi/shared';
 import { updateOrganizationAction } from './actions';
 
@@ -53,11 +53,20 @@ export function OrganizationForm({ defaults }: { defaults: OrganizationUpdate })
           </FormField>
         </div>
         <FormField
-          id="logo_url"
-          label="Logo URL"
-          {...(form.formState.errors.logo_url?.message ? { error: form.formState.errors.logo_url.message } : {})}
+          id="address"
+          label="Address"
+          hint="Physical location of the venue"
+          {...(form.formState.errors.address?.message ? { error: form.formState.errors.address.message } : {})}
         >
-          <Input id="logo_url" {...form.register('logo_url')} placeholder="https://…" />
+          <Textarea id="address" {...form.register('address')} placeholder="Jl. Sudirman No. 1, Jakarta" />
+        </FormField>
+        <FormField
+          id="operating_hours"
+          label="Operating hours"
+          hint="When the restaurant is open"
+          {...(form.formState.errors.operating_hours?.message ? { error: form.formState.errors.operating_hours.message } : {})}
+        >
+          <Textarea id="operating_hours" {...form.register('operating_hours')} placeholder="Mon–Fri 11:00–22:00\nSat–Sun 10:00–23:00" />
         </FormField>
         {error ? <p className="text-[12px] text-danger">{error}</p> : null}
         {saved ? <p className="text-[12px] text-success">Saved.</p> : null}
