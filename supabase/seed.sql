@@ -1,0 +1,3 @@
+-- Seed data is added by individual migrations via INSERT statements
+-- when needed. Org row is seeded in 0002_organizations.sql.
+-- Customer database starts empty intentionally.
