@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { TableCreateSchema, TableUpdateSchema } from './table.js';
+import { TableCreateSchema, TableUpdateSchema } from './table';
 
 describe('TableCreateSchema', () => {
   test('accepts a valid table', () => {

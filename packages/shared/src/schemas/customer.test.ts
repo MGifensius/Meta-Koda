@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { CustomerInputSchema } from './customer.js';
+import { CustomerInputSchema } from './customer';
 
 describe('CustomerInputSchema', () => {
   test('accepts minimal valid input', () => {

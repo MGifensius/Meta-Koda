@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { BookingCreateSchema, BookingUpdateSchema, WalkInCreateSchema } from './booking.js';
+import { BookingCreateSchema, BookingUpdateSchema, WalkInCreateSchema } from './booking';
 
 describe('BookingCreateSchema', () => {
   const valid = {

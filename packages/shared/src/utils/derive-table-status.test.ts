@@ -3,7 +3,7 @@ import {
   deriveTableStatus,
   type TableForDerive,
   type BookingForDerive,
-} from './derive-table-status.js';
+} from './derive-table-status';
 
 const NOW = new Date('2026-12-01T18:00:00Z');
 

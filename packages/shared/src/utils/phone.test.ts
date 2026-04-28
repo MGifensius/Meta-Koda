@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { toE164, isValidE164 } from './phone.js';
+import { toE164, isValidE164 } from './phone';
 
 describe('toE164', () => {
   test('keeps already-E.164 numbers unchanged', () => {

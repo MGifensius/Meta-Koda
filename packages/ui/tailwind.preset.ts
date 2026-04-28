@@ -1,5 +1,5 @@
 import type { Config } from 'tailwindcss';
-import { tokens } from './src/tokens.js';
+import { tokens } from './src/tokens';
 
 const preset: Partial<Config> = {
   theme: {
