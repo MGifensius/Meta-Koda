@@ -17,7 +17,7 @@ function SettingsLinkRow({ href, icon, title, description }: SettingsLinkRowProp
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 px-card-pad py-3.5 hover:bg-canvas transition-colors"
+      className="flex items-center gap-3 px-card-pad py-3.5 hover:bg-fg/5 transition-colors"
     >
       <div className="h-9 w-9 rounded-tile border border-border bg-surface flex items-center justify-center text-fg shrink-0">
         {icon}
