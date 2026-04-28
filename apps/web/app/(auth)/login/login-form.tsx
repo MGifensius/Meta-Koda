@@ -48,7 +48,7 @@ export function LoginForm({ initialError }: { initialError?: string }) {
               type="email"
               autoComplete="email"
               required
-              className="h-10 w-full rounded-input border border-border bg-surface pl-9 pr-3 text-[12px] text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="h-10 w-full rounded-input border border-border bg-surface pl-9 pr-3 text-[11px] text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               placeholder="you@example.com"
             />
           </div>
@@ -63,7 +63,7 @@ export function LoginForm({ initialError }: { initialError?: string }) {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               required
-              className="h-10 w-full rounded-input border border-border bg-surface pl-9 pr-9 text-[12px] text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+              className="h-10 w-full rounded-input border border-border bg-surface pl-9 pr-9 text-[11px] text-fg placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
               placeholder="••••••••"
             />
             <button
