@@ -33,7 +33,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
 
   return (
     <>
-      <Topbar breadcrumb="Workspace / Customers" title={`Edit ${c.full_name}`} />
+      <Topbar breadcrumb="Workspace / Customers" title={`Edit ${c.full_name}`} backHref={`/customers/${id}`} />
       <CustomerEditForm id={id} defaults={defaults} />
     </>
   );

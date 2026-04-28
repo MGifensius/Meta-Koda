@@ -39,6 +39,7 @@ export default async function UsersPage() {
         }
         title="Team"
         actions={<Button asChild><Link href="/settings/users/invite">+ Invite member</Link></Button>}
+        backHref="/settings"
       />
       <UsersTable rows={rows} />
     </>

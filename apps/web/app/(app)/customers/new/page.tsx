@@ -6,7 +6,7 @@ export default async function NewCustomerPage() {
   await requireRole(['admin', 'front_desk', 'customer_service']);
   return (
     <>
-      <Topbar breadcrumb="Workspace / Customers" title="New customer" />
+      <Topbar breadcrumb="Workspace / Customers" title="New customer" backHref="/customers" />
       <CustomerForm />
     </>
   );

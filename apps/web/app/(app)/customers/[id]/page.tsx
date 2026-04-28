@@ -33,6 +33,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       <Topbar
         breadcrumb={<><Link href="/customers" className="hover:underline">Customers</Link> / {c.display_id}</>}
         title={c.full_name}
+        backHref="/customers"
         actions={
           <>
             <Button asChild variant="outline"><Link href={`/customers/${c.id}/edit`}>Edit</Link></Button>

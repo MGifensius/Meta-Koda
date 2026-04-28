@@ -42,6 +42,7 @@ export default async function OrganizationSettingsPage() {
           </>
         }
         title="Organization profile"
+        backHref="/settings"
       />
       <div className="space-y-6 max-w-2xl">
         <Card>
