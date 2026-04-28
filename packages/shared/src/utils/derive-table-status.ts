@@ -1,5 +1,5 @@
-import type { TableStatus } from '../enums/table-status.js';
-import type { BookingStatus } from '../enums/booking-status.js';
+import type { TableStatus } from '../enums/table-status';
+import type { BookingStatus } from '../enums/booking-status';
 
 export interface TableForDerive {
   id: string;

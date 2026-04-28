@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UserRoleSchema } from '../enums/role.js';
+import { UserRoleSchema } from '../enums/role';
 
 export const ProfileSelfUpdateSchema = z.object({
   full_name: z.string().trim().min(1).max(120),

@@ -7,7 +7,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { cn } from '../lib/cn.js';
+import { cn } from '../lib/cn';
 
 export interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];

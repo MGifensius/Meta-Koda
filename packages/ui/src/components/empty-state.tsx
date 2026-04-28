@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '../lib/cn.js';
+import { cn } from '../lib/cn';
 
 export function EmptyState({ icon, title, description, action, className }: { icon?: React.ReactNode; title: string; description?: string; action?: React.ReactNode; className?: string }) {
   return (

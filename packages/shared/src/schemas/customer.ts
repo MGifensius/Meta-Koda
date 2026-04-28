@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { toE164 } from '../utils/phone.js';
+import { toE164 } from '../utils/phone';
 
 export const CustomerInputSchema = z.object({
   full_name: z.string().trim().min(1, 'Name is required').max(120, 'Name too long'),

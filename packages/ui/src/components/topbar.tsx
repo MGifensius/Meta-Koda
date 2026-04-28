@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { cn } from '../lib/cn.js';
+import { cn } from '../lib/cn';
 
 export interface TopbarProps {
   breadcrumb?: React.ReactNode;

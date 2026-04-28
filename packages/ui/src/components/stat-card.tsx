@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { TrendingUp, TrendingDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { cn } from '../lib/cn.js';
+import { cn } from '../lib/cn';
 
 interface StatCardBaseProps {
   title: string;

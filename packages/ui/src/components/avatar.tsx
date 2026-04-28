@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as Avatar from '@radix-ui/react-avatar';
-import { cn } from '../lib/cn.js';
+import { cn } from '../lib/cn';
 
 export interface AvatarProps {
   src?: string | null;

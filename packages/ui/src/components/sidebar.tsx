@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { cn } from '../lib/cn.js';
+import { cn } from '../lib/cn';
 
 export function Sidebar({ children, className }: { children: React.ReactNode; className?: string }) {
   return (

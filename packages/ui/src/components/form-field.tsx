@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as Label from '@radix-ui/react-label';
-import { cn } from '../lib/cn.js';
+import { cn } from '../lib/cn';
 
 export interface FormFieldProps {
   id: string;
