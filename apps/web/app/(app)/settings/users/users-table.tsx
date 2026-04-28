@@ -55,7 +55,7 @@ export function UsersTable({ rows }: { rows: UserRow[] }) {
             <div className="text-muted">{u.email}</div>
             <div>
               <select
-                className="rounded-input border border-border bg-surface px-2 py-1 text-body"
+                className="rounded-input border border-border bg-surface px-2 py-1 text-[12px] text-fg"
                 value={u.role}
                 disabled={pendingId === u.id || u.isSelf}
                 onChange={(e) => void changeRole(u.id, e.target.value as UserRole)}
