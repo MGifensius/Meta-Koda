@@ -36,7 +36,7 @@ export function SidebarItem({ icon, active, disabled, children, className, ...re
     <div
       className={cn(
         'flex items-center gap-2.5 px-3 py-2.5 rounded-input text-[13px] transition-colors',
-        active && 'bg-fg text-white font-medium',
+        active && 'bg-row-divider text-fg font-medium',
         !active && !disabled && 'text-fg hover:bg-canvas cursor-pointer',
         disabled && 'text-border cursor-not-allowed',
         className,
@@ -44,7 +44,7 @@ export function SidebarItem({ icon, active, disabled, children, className, ...re
       aria-disabled={disabled || undefined}
       {...rest}
     >
-      <span className={cn('inline-flex h-4 w-4 items-center justify-center', active ? 'text-white' : disabled ? 'text-border' : 'text-muted')}>{icon}</span>
+      <span className={cn('inline-flex h-4 w-4 items-center justify-center', active ? 'text-fg' : disabled ? 'text-border' : 'text-muted')}>{icon}</span>
       <span>{children}</span>
     </div>
   );
