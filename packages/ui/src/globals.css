@@ -55,24 +55,17 @@
   --text-label--letter-spacing: 0.06em;
 }
 
-html, body {
-  background: var(--color-canvas);
-  color: var(--color-fg);
-  font-family: var(--font-sans);
-  font-feature-settings: "ss01", "cv11";
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+@layer base {
+  html, body {
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-* {
-  box-sizing: border-box;
-}
-
-button {
-  font: inherit;
-  cursor: pointer;
-}
-
-input, textarea, select {
-  font: inherit;
+  button {
+    cursor: pointer;
+  }
 }
