@@ -13,6 +13,12 @@ export function OrganizationForm({ defaults }: { defaults: OrganizationUpdate })
   const [error, setError] = React.useState<string | undefined>();
   const [saved, setSaved] = React.useState(false);
 
+  React.useEffect(() => {
+    if (!saved) return;
+    const t = setTimeout(() => setSaved(false), 1500);
+    return () => clearTimeout(t);
+  }, [saved]);
+
   const form = useForm<OrganizationUpdate>({
     resolver: zodResolver(OrganizationUpdateSchema),
     defaultValues: defaults,
@@ -67,8 +73,15 @@ export function OrganizationForm({ defaults }: { defaults: OrganizationUpdate })
           <OperatingHoursEditor name="operating_hours" />
         </div>
         {error ? <p className="text-[12px] text-danger">{error}</p> : null}
-        {saved ? <p className="text-[12px] text-success">Saved.</p> : null}
-        <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save'}</Button>
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save'}</Button>
+          <span
+            className={`text-[12px] text-success transition-opacity duration-300 ${saved ? 'opacity-100' : 'opacity-0'}`}
+            aria-live="polite"
+          >
+            Saved
+          </span>
+        </div>
       </form>
     </FormProvider>
   );
