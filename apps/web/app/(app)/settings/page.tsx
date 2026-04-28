@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Building2, Users, ChevronRight } from 'lucide-react';
+import { Building2, Users, Grid3x3, ChevronRight } from 'lucide-react';
 import { Topbar } from '@buranchi/ui';
 import { ROLE_LABELS } from '@buranchi/shared';
 import { requireProfile } from '@/lib/auth/server';
@@ -48,6 +48,12 @@ export default async function SettingsPage() {
                 icon={<Building2 className="h-4 w-4" />}
                 title="Organization profile"
                 description="Edit name, timezone, and logo"
+              />
+              <SettingsLinkRow
+                href="/settings/tables"
+                icon={<Grid3x3 className="h-4 w-4" />}
+                title="Tables"
+                description="Add, edit, and manage tables shown on the Floor view"
               />
               <SettingsLinkRow
                 href="/settings/users"
@@ -101,7 +107,7 @@ function SettingsLinkRow({
   title,
   description,
 }: {
-  href: '/settings/organization' | '/settings/users';
+  href: '/settings/organization' | '/settings/users' | '/settings/tables';
   icon: React.ReactNode;
   title: string;
   description: string;
