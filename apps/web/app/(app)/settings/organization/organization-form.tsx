@@ -32,24 +32,26 @@ export function OrganizationForm({ defaults }: { defaults: OrganizationUpdate })
 
   return (
     <FormProvider {...form}>
-      <form onSubmit={onSubmit} className="space-y-4 max-w-md">
-        <FormField
-          id="name"
-          label="Organization name"
-          required
-          {...(form.formState.errors.name?.message ? { error: form.formState.errors.name.message } : {})}
-        >
-          <Input id="name" {...form.register('name')} />
-        </FormField>
-        <FormField
-          id="timezone"
-          label="Timezone"
-          required
-          hint="e.g. Asia/Jakarta"
-          {...(form.formState.errors.timezone?.message ? { error: form.formState.errors.timezone.message } : {})}
-        >
-          <Input id="timezone" {...form.register('timezone')} />
-        </FormField>
+      <form onSubmit={onSubmit} className="space-y-4 max-w-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            id="name"
+            label="Organization name"
+            required
+            {...(form.formState.errors.name?.message ? { error: form.formState.errors.name.message } : {})}
+          >
+            <Input id="name" {...form.register('name')} />
+          </FormField>
+          <FormField
+            id="timezone"
+            label="Timezone"
+            required
+            hint="e.g. Asia/Jakarta"
+            {...(form.formState.errors.timezone?.message ? { error: form.formState.errors.timezone.message } : {})}
+          >
+            <Input id="timezone" {...form.register('timezone')} />
+          </FormField>
+        </div>
         <FormField
           id="logo_url"
           label="Logo URL"

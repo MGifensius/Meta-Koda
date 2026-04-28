@@ -32,23 +32,25 @@ export function ProfileForm({ defaults }: { defaults: ProfileSelfUpdate }) {
 
   return (
     <FormProvider {...form}>
-      <form onSubmit={onSubmit} className="space-y-4 max-w-md">
-        <FormField
-          id="full_name"
-          label="Full name"
-          required
-          {...(form.formState.errors.full_name?.message ? { error: form.formState.errors.full_name.message } : {})}
-        >
-          <Input id="full_name" {...form.register('full_name')} />
-        </FormField>
-        <FormField
-          id="avatar_url"
-          label="Avatar URL"
-          hint="Public image URL"
-          {...(form.formState.errors.avatar_url?.message ? { error: form.formState.errors.avatar_url.message } : {})}
-        >
-          <Input id="avatar_url" {...form.register('avatar_url')} placeholder="https://…" />
-        </FormField>
+      <form onSubmit={onSubmit} className="space-y-4 max-w-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            id="full_name"
+            label="Full name"
+            required
+            {...(form.formState.errors.full_name?.message ? { error: form.formState.errors.full_name.message } : {})}
+          >
+            <Input id="full_name" {...form.register('full_name')} />
+          </FormField>
+          <FormField
+            id="avatar_url"
+            label="Avatar URL"
+            hint="Public image URL"
+            {...(form.formState.errors.avatar_url?.message ? { error: form.formState.errors.avatar_url.message } : {})}
+          >
+            <Input id="avatar_url" {...form.register('avatar_url')} placeholder="https://…" />
+          </FormField>
+        </div>
         {error ? <p className="text-[12px] text-danger">{error}</p> : null}
         {saved ? <p className="text-[12px] text-success">Saved.</p> : null}
         <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Save'}</Button>

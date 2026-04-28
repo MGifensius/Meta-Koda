@@ -27,7 +27,7 @@ export default async function OrganizationSettingsPage() {
         }
         title="Organization profile"
       />
-      <Card className="max-w-md">
+      <Card className="max-w-2xl">
         <OrganizationForm defaults={defaults} />
       </Card>
     </>
