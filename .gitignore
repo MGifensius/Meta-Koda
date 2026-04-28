@@ -10,6 +10,7 @@ out/
 .env.local
 .env.*.local
 .vercel/
+.claude/
 .superpowers/
 .DS_Store
 *.log
