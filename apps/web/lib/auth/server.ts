@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import type { UserRole } from '@buranchi/shared';
 import { createServerClient } from '@/lib/supabase/server';
@@ -13,7 +14,11 @@ export type Profile = {
   avatar_url: string | null;
 };
 
-export async function getProfile(): Promise<Profile | null> {
+/**
+ * React.cache() memoizes within a single request, so layout + page + nested
+ * server components all share one auth + profile lookup instead of double-fetching.
+ */
+export const getProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -25,7 +30,7 @@ export async function getProfile(): Promise<Profile | null> {
     .single();
 
   return (profile as Profile | null) ?? null;
-}
+});
 
 export async function requireProfile(): Promise<Profile> {
   const profile = await getProfile();
