@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
   // and other referenced routes; otherwise typecheck flags missing routes.
   typedRoutes: false,
   transpilePackages: ['@buranchi/shared', '@buranchi/ui'],
+  turbopack: {
+    // Match the webpack `extensionAlias` below so Turbopack can resolve `.js`
+    // specifiers in the workspace packages back to their `.ts`/`.tsx` source.
+    // Without this, Tailwind's @source globs find nothing in @buranchi/ui and
+    // dev pages render unstyled.
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.mts', '.json'],
+  },
   webpack(config) {
     // The internal packages export ESM with `.js` specifiers that resolve to
     // `.ts`/`.tsx` source files. Tell webpack to fall back to TS extensions.
