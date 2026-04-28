@@ -18,7 +18,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "dotenv -e .env.local -- vitest run supabase/tests/rls.test.ts",
-    "db:types": "supabase gen types typescript --local --schema public > packages/shared/src/types/database.ts",
+    "db:types": "supabase gen types typescript --project-id zsbnsxwsnoulspzkfpvb --schema public > packages/shared/src/types/database.ts",
     "seed:admin": "tsx scripts/seed-admin.ts"
   },
   "devDependencies": {

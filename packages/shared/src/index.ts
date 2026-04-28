@@ -5,3 +5,4 @@ export * from './schemas/customer.js';
 export * from './schemas/organization.js';
 export * from './schemas/profile.js';
 export * from './schemas/invite.js';
+export type { Database } from './types/database.js';
