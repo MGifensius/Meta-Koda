@@ -3,7 +3,16 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Calendar, MessageSquare, User } from 'lucide-react';
+import {
+  Calendar,
+  ChevronDown,
+  CircleCheck,
+  Filter,
+  MessageSquare,
+  Tag,
+  User,
+} from 'lucide-react';
+import { cn } from '@buranchi/ui';
 import { BookingStatusPill } from '@/components/status-pill';
 import {
   BOOKING_SOURCE_LABELS,
@@ -44,46 +53,88 @@ export function BookingsListClient({
     router.replace(`${pathname}${params.toString() ? `?${params.toString()}` : ''}`);
   }
 
-  const filterClass =
-    'h-[33px] rounded-input border border-border bg-surface px-2.5 text-[12px] text-fg appearance-none cursor-pointer';
+  const rangeOptions: { value: string; label: string }[] = [
+    { value: 'today', label: 'Today' },
+    { value: 'tomorrow', label: 'Tomorrow' },
+    { value: 'week', label: 'This week' },
+    { value: 'all', label: 'All time' },
+  ];
+
+  const statusActive = filters.status !== 'all';
+  const sourceActive = filters.source !== 'all';
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <select
-          aria-label="Date range"
-          className={filterClass}
-          value={filters.range}
-          onChange={(e) => updateFilter('range', e.target.value)}
-        >
-          <option value="today">Today</option>
-          <option value="tomorrow">Tomorrow</option>
-          <option value="week">This week</option>
-          <option value="all">All</option>
-        </select>
-        <select
-          aria-label="Status"
-          className={filterClass}
+      <div className="rounded-card bg-surface shadow-card px-3 py-2.5 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-muted font-semibold pr-2 pl-1">
+          <Filter className="h-3 w-3" />
+          Filters
+        </span>
+
+        <div className="inline-flex items-center gap-1 rounded-pill bg-canvas p-0.5" role="group" aria-label="Date range">
+          {rangeOptions.map((opt) => {
+            const active = filters.range === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => updateFilter('range', opt.value)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-pill px-2.5 h-7 text-[11px] font-medium transition-colors',
+                  active
+                    ? 'bg-surface text-fg shadow-card'
+                    : 'text-muted hover:text-fg',
+                )}
+              >
+                {opt.value === 'today' || opt.value === 'tomorrow' ? (
+                  <Calendar className="h-3 w-3" />
+                ) : null}
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <FilterSelect
+          icon={<CircleCheck className="h-3 w-3" />}
+          label="Status"
           value={filters.status}
-          onChange={(e) => updateFilter('status', e.target.value)}
-        >
-          <option value="all">All statuses</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="seated">Seated</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-          <option value="no_show">No-show</option>
-        </select>
-        <select
-          aria-label="Source"
-          className={filterClass}
+          active={statusActive}
+          onChange={(v) => updateFilter('status', v)}
+          options={[
+            { value: 'all', label: 'All statuses' },
+            { value: 'confirmed', label: 'Confirmed' },
+            { value: 'seated', label: 'Seated' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'cancelled', label: 'Cancelled' },
+            { value: 'no_show', label: 'No-show' },
+          ]}
+        />
+        <FilterSelect
+          icon={<Tag className="h-3 w-3" />}
+          label="Source"
           value={filters.source}
-          onChange={(e) => updateFilter('source', e.target.value)}
-        >
-          <option value="all">All sources</option>
-          <option value="manual">Manual</option>
-          <option value="walk_in">Walk-in</option>
-        </select>
+          active={sourceActive}
+          onChange={(v) => updateFilter('source', v)}
+          options={[
+            { value: 'all', label: 'All sources' },
+            { value: 'manual', label: 'Manual' },
+            { value: 'walk_in', label: 'Walk-in' },
+          ]}
+        />
+
+        {(filters.range !== 'today' || statusActive || sourceActive) ? (
+          <button
+            type="button"
+            onClick={() => {
+              setFilters({ range: 'today', status: 'all', source: 'all' });
+              router.replace(pathname);
+            }}
+            className="ml-auto inline-flex items-center text-[11px] text-muted hover:text-fg transition-colors px-2 h-7"
+          >
+            Reset
+          </button>
+        ) : null}
       </div>
 
       {initialRows.length === 0 ? (
@@ -135,6 +186,46 @@ export function BookingsListClient({
         </div>
       )}
     </div>
+  );
+}
+
+interface FilterSelectProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  active: boolean;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}
+
+function FilterSelect({ icon, label, value, active, onChange, options }: FilterSelectProps) {
+  const current = options.find((o) => o.value === value);
+  return (
+    <label
+      className={cn(
+        'relative inline-flex items-center gap-1.5 h-7 rounded-pill border px-2.5 text-[11px] font-medium cursor-pointer transition-colors',
+        active
+          ? 'border-accent/30 bg-accent-soft text-accent'
+          : 'border-row-divider bg-canvas text-fg hover:border-border',
+      )}
+    >
+      <span className={active ? 'text-accent' : 'text-muted'}>{icon}</span>
+      <span className={active ? 'text-accent' : 'text-muted'}>{label}:</span>
+      <span className="font-semibold">{current?.label ?? '—'}</span>
+      <ChevronDown className={cn('h-3 w-3', active ? 'text-accent' : 'text-muted')} />
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 opacity-0 cursor-pointer"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
