@@ -8,17 +8,21 @@ import { updateAvatarAction } from '@/app/(app)/settings/profile-actions';
 
 const ACCEPTED = 'image/png,image/jpeg,image/gif,image/webp';
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const SIGNED_URL_TTL_SECONDS = 3600;
 
 export function AvatarUpload({
   userId,
-  initialUrl,
+  initialPath,
+  initialSignedUrl,
   initials,
 }: {
   userId: string;
-  initialUrl: string | null;
+  initialPath: string | null;
+  initialSignedUrl: string | null;
   initials: string;
 }) {
-  const [url, setUrl] = React.useState<string | null>(initialUrl);
+  const [path, setPath] = React.useState<string | null>(initialPath);
+  const [signedUrl, setSignedUrl] = React.useState<string | null>(initialSignedUrl);
   const [pending, setPending] = React.useState<'upload' | 'remove' | null>(null);
   const [error, setError] = React.useState<string | undefined>();
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -42,18 +46,21 @@ export function AvatarUpload({
     try {
       const supabase = createClient();
       const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : 'png';
-      const path = `${userId}/avatar-${Date.now()}.${ext}`;
+      const newPath = `${userId}/avatar-${Date.now()}.${ext}`;
 
       const { error: uploadErr } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { upsert: true, cacheControl: '3600' });
+        .upload(newPath, file, { upsert: true, cacheControl: '3600' });
       if (uploadErr) throw uploadErr;
 
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      const publicUrl = data.publicUrl;
+      const { data: signed, error: signedErr } = await supabase.storage
+        .from('avatars')
+        .createSignedUrl(newPath, SIGNED_URL_TTL_SECONDS);
+      if (signedErr) throw signedErr;
 
-      await updateAvatarAction(publicUrl);
-      setUrl(publicUrl);
+      await updateAvatarAction(newPath);
+      setPath(newPath);
+      setSignedUrl(signed?.signedUrl ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
@@ -66,7 +73,8 @@ export function AvatarUpload({
     setPending('remove');
     try {
       await updateAvatarAction(null);
-      setUrl(null);
+      setPath(null);
+      setSignedUrl(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Remove failed.');
     } finally {
@@ -77,7 +85,7 @@ export function AvatarUpload({
   return (
     <div className="flex items-center gap-5">
       <div className="relative">
-        <UserAvatar src={url} initials={initials} size="lg" className="h-16 w-16 text-[18px]" />
+        <UserAvatar src={signedUrl} initials={initials} size="lg" className="h-16 w-16 text-[18px]" />
       </div>
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
@@ -90,7 +98,7 @@ export function AvatarUpload({
             <Upload className="h-3.5 w-3.5" />
             <span>{pending === 'upload' ? 'Uploading…' : 'Change image'}</span>
           </Button>
-          {url ? (
+          {path ? (
             <Button
               type="button"
               variant="ghost"

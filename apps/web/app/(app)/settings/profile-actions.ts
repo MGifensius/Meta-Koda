@@ -23,11 +23,13 @@ export async function updateOwnProfileAction(input: unknown) {
   return { ok: true };
 }
 
-const AvatarUrlSchema = z.string().url().nullable();
+// Storage path within the avatars bucket — e.g. "<user_id>/avatar-123.png".
+// Bucket is private; render via signed URL.
+const AvatarPathSchema = z.string().trim().min(1).max(500).nullable();
 
-export async function updateAvatarAction(avatarUrl: string | null) {
+export async function updateAvatarAction(avatarPath: string | null) {
   const profile = await requireProfile();
-  const parsed = AvatarUrlSchema.parse(avatarUrl);
+  const parsed = AvatarPathSchema.parse(avatarPath);
 
   const supabase = await createServerClient();
   const { error } = await supabase.from('profiles')

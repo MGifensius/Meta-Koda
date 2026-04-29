@@ -3,15 +3,29 @@ import { Building2, Users, Grid3x3, Sparkles, ChevronRight } from 'lucide-react'
 import { Topbar } from '@buranchi/ui';
 import { ROLE_LABELS } from '@buranchi/shared';
 import { requireProfile } from '@/lib/auth/server';
+import { createServerClient } from '@/lib/supabase/server';
 import { ProfileForm } from './profile-form';
 import { AvatarUpload } from '@/components/avatar-upload';
 import type { ProfileSelfUpdate } from '@buranchi/shared';
+
+const AVATAR_SIGNED_URL_TTL_SECONDS = 3600;
 
 export default async function SettingsPage() {
   const profile = await requireProfile();
   const defaults: ProfileSelfUpdate = {
     full_name: profile.full_name,
   };
+
+  // profiles.avatar_url stores a storage PATH; convert to a signed URL for rendering.
+  let initialSignedUrl: string | null = null;
+  if (profile.avatar_url) {
+    const supabase = await createServerClient();
+    const { data } = await supabase.storage
+      .from('avatars')
+      .createSignedUrl(profile.avatar_url, AVATAR_SIGNED_URL_TTL_SECONDS);
+    initialSignedUrl = data?.signedUrl ?? null;
+  }
+
   return (
     <div className="max-w-3xl">
       <Topbar breadcrumb="Workspace" title="Account settings" />
@@ -24,7 +38,8 @@ export default async function SettingsPage() {
         >
           <AvatarUpload
             userId={profile.id}
-            initialUrl={profile.avatar_url}
+            initialPath={profile.avatar_url}
+            initialSignedUrl={initialSignedUrl}
             initials={profile.full_name}
           />
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[12px]">

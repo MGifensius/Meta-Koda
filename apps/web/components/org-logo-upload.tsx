@@ -8,15 +8,19 @@ import { updateOrgLogoAction } from '@/app/(app)/settings/organization/actions';
 
 const ACCEPTED = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml';
 const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const SIGNED_URL_TTL_SECONDS = 3600;
 
 export function OrgLogoUpload({
   organizationId,
-  initialUrl,
+  initialPath,
+  initialSignedUrl,
 }: {
   organizationId: string;
-  initialUrl: string | null;
+  initialPath: string | null;
+  initialSignedUrl: string | null;
 }) {
-  const [url, setUrl] = React.useState<string | null>(initialUrl);
+  const [path, setPath] = React.useState<string | null>(initialPath);
+  const [signedUrl, setSignedUrl] = React.useState<string | null>(initialSignedUrl);
   const [pending, setPending] = React.useState<'upload' | 'remove' | null>(null);
   const [error, setError] = React.useState<string | undefined>();
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -40,18 +44,21 @@ export function OrgLogoUpload({
     try {
       const supabase = createClient();
       const ext = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : 'png';
-      const path = `${organizationId}/logo-${Date.now()}.${ext}`;
+      const newPath = `${organizationId}/logo-${Date.now()}.${ext}`;
 
       const { error: uploadErr } = await supabase.storage
         .from('org-logos')
-        .upload(path, file, { upsert: true, cacheControl: '3600' });
+        .upload(newPath, file, { upsert: true, cacheControl: '3600' });
       if (uploadErr) throw uploadErr;
 
-      const { data } = supabase.storage.from('org-logos').getPublicUrl(path);
-      const publicUrl = data.publicUrl;
+      const { data: signed, error: signedErr } = await supabase.storage
+        .from('org-logos')
+        .createSignedUrl(newPath, SIGNED_URL_TTL_SECONDS);
+      if (signedErr) throw signedErr;
 
-      await updateOrgLogoAction(publicUrl);
-      setUrl(publicUrl);
+      await updateOrgLogoAction(newPath);
+      setPath(newPath);
+      setSignedUrl(signed?.signedUrl ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed.');
     } finally {
@@ -64,7 +71,8 @@ export function OrgLogoUpload({
     setPending('remove');
     try {
       await updateOrgLogoAction(null);
-      setUrl(null);
+      setPath(null);
+      setSignedUrl(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Remove failed.');
     } finally {
@@ -75,8 +83,8 @@ export function OrgLogoUpload({
   return (
     <div className="flex items-center gap-5">
       <div className="h-16 w-16 rounded-tile border border-border bg-canvas overflow-hidden flex items-center justify-center text-muted">
-        {url ? (
-          <img src={url} alt="" className="h-full w-full object-contain" />
+        {signedUrl ? (
+          <img src={signedUrl} alt="" className="h-full w-full object-contain" />
         ) : (
           <Building2 className="h-7 w-7" />
         )}
@@ -91,7 +99,7 @@ export function OrgLogoUpload({
             <Upload className="h-3.5 w-3.5" />
             <span>{pending === 'upload' ? 'Uploading…' : 'Upload logo'}</span>
           </Button>
-          {url ? (
+          {path ? (
             <Button
               type="button"
               variant="ghost"
