@@ -32,7 +32,7 @@ export function LoginForm({ initialError }: { initialError?: string }) {
       </div>
 
       <div className="text-center mb-6">
-        <h1 className="text-title text-fg font-bold">Buranchi CRM</h1>
+        <h1 className="text-title text-fg font-bold">Meta-Koda</h1>
         <p className="text-body text-muted mt-1">Manage your operation.</p>
       </div>
 
