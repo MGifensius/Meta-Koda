@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { KODA_TOOL_DEFINITIONS, executeTool, type ToolContext } from './tools';
 
 describe('KODA_TOOL_DEFINITIONS', () => {
-  test('defines exactly 7 tools with the required names', () => {
+  test('defines exactly 9 tools with the required names', () => {
     const names = KODA_TOOL_DEFINITIONS.map((t) => t.function.name).sort();
     expect(names).toEqual([
       'add_customer_note',
@@ -11,7 +11,9 @@ describe('KODA_TOOL_DEFINITIONS', () => {
       'create_booking',
       'escalate_to_staff',
       'find_customer_booking',
+      'get_loyalty_status',
       'modify_booking',
+      'redeem_reward',
     ]);
   });
 
@@ -56,6 +58,25 @@ describe('executeTool', () => {
   test('add_customer_note errors when customer_id missing', async () => {
     const result = await executeTool(
       { name: 'add_customer_note', arguments: JSON.stringify({ note: 'Allergic to peanuts' }) },
+      { ...ctx, customer_id: null },
+    );
+    expect(JSON.parse(result.content)).toEqual({ error: 'no_customer' });
+  });
+
+  test('redeem_reward forwards args to hook', async () => {
+    const redeemMock = vi.fn().mockResolvedValue({ ok: true });
+    const result = await executeTool(
+      { name: 'redeem_reward', arguments: JSON.stringify({ reward_id: 'r1', booking_id: 'b1' }) },
+      ctx,
+      { redeemReward: redeemMock },
+    );
+    expect(result.error).toBeUndefined();
+    expect(redeemMock).toHaveBeenCalledWith('r1', 'b1');
+  });
+
+  test('get_loyalty_status errors when customer_id missing', async () => {
+    const result = await executeTool(
+      { name: 'get_loyalty_status', arguments: '{}' },
       { ...ctx, customer_id: null },
     );
     expect(JSON.parse(result.content)).toEqual({ error: 'no_customer' });

@@ -126,6 +126,31 @@ export const KODA_TOOL_DEFINITIONS: ChatCompletionFunctionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'get_loyalty_status',
+      description:
+        "Get the current customer's loyalty status: membership, tier, balance, lifetime, eligible rewards, and tier perks. Use when the customer asks about their points/tier/rewards.",
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'redeem_reward',
+      description:
+        'Reserve a reward for the customer at one of their upcoming bookings. Deducts points immediately and attaches the redemption to the booking. Confirm the reward and the specific booking with the customer before calling.',
+      parameters: {
+        type: 'object',
+        properties: {
+          reward_id: { type: 'string' },
+          booking_id: { type: 'string' },
+        },
+        required: ['reward_id', 'booking_id'],
+      },
+    },
+  },
 ];
 
 // ============================================================================
@@ -152,6 +177,8 @@ export interface ToolHooks {
   cancelBooking?: (id: string, reason?: string) => Promise<unknown>;
   addCustomerNote?: (customerId: string, note: string, conversationId: string) => Promise<unknown>;
   escalate?: (conversationId: string, reason: string) => Promise<unknown>;
+  getLoyaltyStatus?: (customerId: string) => Promise<unknown>;
+  redeemReward?: (rewardId: string, bookingId: string) => Promise<unknown>;
 }
 
 const ParamsByTool = {
@@ -176,6 +203,8 @@ const ParamsByTool = {
   cancel_booking: z.object({ booking_id: z.string(), reason: z.string().optional() }),
   add_customer_note: z.object({ note: z.string().max(500) }),
   escalate_to_staff: z.object({ reason: z.string() }),
+  get_loyalty_status: z.object({}),
+  redeem_reward: z.object({ reward_id: z.string(), booking_id: z.string() }),
 } as const;
 
 type ToolName = keyof typeof ParamsByTool;
@@ -294,6 +323,22 @@ export async function executeTool(
       case 'escalate_to_staff': {
         const a = args as z.infer<typeof ParamsByTool.escalate_to_staff>;
         const result = hooks.escalate ? await hooks.escalate(ctx.conversation_id, a.reason) : { ok: true };
+        return { tool_call_id: tcId, content: JSON.stringify(result) };
+      }
+      case 'get_loyalty_status': {
+        if (!ctx.customer_id) {
+          return { tool_call_id: tcId, content: JSON.stringify({ error: 'no_customer' }) };
+        }
+        const result = hooks.getLoyaltyStatus
+          ? await hooks.getLoyaltyStatus(ctx.customer_id)
+          : { error: 'not_implemented' };
+        return { tool_call_id: tcId, content: JSON.stringify(result) };
+      }
+      case 'redeem_reward': {
+        const a = args as z.infer<typeof ParamsByTool.redeem_reward>;
+        const result = hooks.redeemReward
+          ? await hooks.redeemReward(a.reward_id, a.booking_id)
+          : { error: 'not_implemented' };
         return { tool_call_id: tcId, content: JSON.stringify(result) };
       }
     }
