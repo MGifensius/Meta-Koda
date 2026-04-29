@@ -13,4 +13,7 @@ export * from './schemas/profile';
 export * from './schemas/invite';
 export * from './schemas/booking';
 export * from './schemas/table';
+export * from './schemas/koda-faq';
+export * from './schemas/koda-special';
+export * from './schemas/koda-message';
 export type { Database } from './types/database';
