@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MessageCircle, Star, Calendar, Megaphone, UserPlus, Search, Settings, ArrowRight } from 'lucide-react';
+import { MessageCircle, Megaphone, UserPlus, Search, Settings, ArrowRight } from 'lucide-react';
 import { Topbar, StatCardTrend, Card, Button } from '@buranchi/ui';
 import { requireProfile } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -156,25 +156,18 @@ export default async function DashboardPage() {
       </div>
 
       {/* Coming soon preview */}
-      <h2 className="text-title text-fg mb-3">What&apos;s next</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-row-gap">
-        <ComingSoonCard
-          icon={<Calendar className="h-5 w-5" />}
-          title="Bookings & Tables"
-          description="Reservations, walk-ins, and live floor view."
-          phase="Phase 2"
-        />
+      <div className="mb-3">
+        <h2 className="text-title text-fg">Coming soon</h2>
+        <p className="text-[12px] text-muted mt-0.5">
+          Two phases left before Meta-Koda is feature-complete.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-row-gap">
         <ComingSoonCard
           icon={<MessageCircle className="h-5 w-5" />}
           title="WhatsApp Inbox"
           description="Centralized customer chat with AI assist."
-          phase="Phase 3 - 4"
-        />
-        <ComingSoonCard
-          icon={<Star className="h-5 w-5" />}
-          title="Loyalty & Tiers"
-          description="Points, member tiers, rewards."
-          phase="Phase 5"
+          phase="Phase 3"
         />
         <ComingSoonCard
           icon={<Megaphone className="h-5 w-5" />}
