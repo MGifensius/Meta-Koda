@@ -202,4 +202,57 @@ describe('runTurn', () => {
     expect(result.escalated).toBe(true);
     expect(result.escalationReason).toBe('post-turn:low_confidence');
   });
+
+  test('loyalty: get_loyalty_status then redeem_reward', async () => {
+    const mockClient = makeMockClient([
+      {
+        content: '',
+        tool_calls: [
+          {
+            id: 'tc1',
+            type: 'function',
+            function: { name: 'get_loyalty_status', arguments: '{}' },
+          },
+        ],
+      },
+      {
+        content: '',
+        tool_calls: [
+          {
+            id: 'tc2',
+            type: 'function',
+            function: {
+              name: 'redeem_reward',
+              arguments: JSON.stringify({ reward_id: 'r1', booking_id: 'b1' }),
+            },
+          },
+        ],
+      },
+      { content: 'Sudah saya reservasi voucher dessert gratisnya untuk besok.' },
+    ]);
+
+    const getLoyaltyStatus = vi.fn().mockResolvedValue({
+      tier_name: 'Gold',
+      points_balance: 1500,
+      points_lifetime: 2000,
+      available_rewards: [
+        { id: 'r1', name: 'Free dessert', points_cost: 200, type: 'free_item', type_value: 0 },
+      ],
+    });
+    const redeemReward = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await runTurn({
+      conversationId: 'conv-1',
+      userMessage: 'Saya mau pakai dessert gratis besok',
+      promptCtx,
+      toolCtx: { ...toolCtx, customer_id: 'cust-1' },
+      history: [],
+      hooks: { getLoyaltyStatus, redeemReward },
+      client: mockClient as never,
+    });
+
+    expect(getLoyaltyStatus).toHaveBeenCalled();
+    expect(redeemReward).toHaveBeenCalledWith('r1', 'b1');
+    expect(result.assistantMessage).toContain('voucher dessert');
+  });
 });
