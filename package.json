@@ -19,7 +19,8 @@
     "db:reset": "supabase db reset",
     "db:test": "dotenv -e .env.local -- vitest run supabase/tests",
     "db:types": "supabase gen types typescript --project-id zsbnsxwsnoulspzkfpvb --schema public > packages/shared/src/types/database.ts",
-    "seed:admin": "dotenv -e .env.local -- tsx scripts/seed-admin.ts"
+    "seed:admin": "dotenv -e .env.local -- tsx scripts/seed-admin.ts",
+    "seed:demo": "dotenv -e .env.local -- tsx scripts/seed-demo-tenant.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.105.0",
