@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Button, FormField } from '@buranchi/ui';
 import { loginAction } from './actions';
 
@@ -27,15 +27,13 @@ export function LoginForm({ initialError }: { initialError?: string }) {
     <div className="rounded-card bg-surface/80 backdrop-blur-md border border-white/40 shadow-[0_8px_40px_rgba(15,23,42,0.08)] p-7">
       <div className="flex justify-center mb-5">
         <div className="h-11 w-11 rounded-tile bg-canvas border border-border flex items-center justify-center">
-          <LogIn className="h-5 w-5 text-fg" />
+          <KeyRound className="h-5 w-5 text-fg" />
         </div>
       </div>
 
       <div className="text-center mb-6">
-        <h1 className="text-title text-fg font-bold">Sign in with email</h1>
-        <p className="text-body text-muted mt-1">
-          Welcome back. Sign in to manage Buranchi customer operations.
-        </p>
+        <h1 className="text-title text-fg font-bold">Buranchi CRM</h1>
+        <p className="text-body text-muted mt-1">Manage your operation.</p>
       </div>
 
       <form action={formAction} className="space-y-3.5">
