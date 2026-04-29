@@ -1,11 +1,11 @@
-import type { ChatCompletionTool, ChatCompletionMessageToolCall } from 'openai/resources/chat/completions';
+import type { ChatCompletionFunctionTool } from 'openai/resources/chat/completions';
 import { z } from 'zod';
 
 // ============================================================================
 // Tool definitions (sent to OpenAI)
 // ============================================================================
 
-export const KODA_TOOL_DEFINITIONS: ChatCompletionTool[] = [
+export const KODA_TOOL_DEFINITIONS: ChatCompletionFunctionTool[] = [
   {
     type: 'function',
     function: {
@@ -184,19 +184,25 @@ function isKnownTool(name: string): name is ToolName {
   return name in ParamsByTool;
 }
 
+export interface ToolCallShape {
+  name: string;
+  arguments: string;
+  tool_call_id?: string;
+}
+
 export async function executeTool(
-  toolCall: { name: string; arguments: string; tool_call_id?: string }
-    | (ChatCompletionMessageToolCall['function'] & { tool_call_id?: string }),
+  toolCall: ToolCallShape,
   ctx: ToolContext,
   hooks: ToolHooks = {},
 ): Promise<ToolResult> {
-  const tcId = (toolCall as { tool_call_id?: string }).tool_call_id ?? '';
+  const tcId = toolCall.tool_call_id ?? '';
+  const name = toolCall.name;
 
-  if (!isKnownTool(toolCall.name)) {
+  if (!isKnownTool(name)) {
     return {
       tool_call_id: tcId,
-      content: JSON.stringify({ error: 'unknown_tool', name: toolCall.name }),
-      error: `unknown tool: ${toolCall.name}`,
+      content: JSON.stringify({ error: 'unknown_tool', name }),
+      error: `unknown tool: ${name}`,
     };
   }
 
@@ -211,7 +217,7 @@ export async function executeTool(
     };
   }
 
-  const schema = ParamsByTool[toolCall.name];
+  const schema = ParamsByTool[name];
   const validation = schema.safeParse(parsed);
   if (!validation.success) {
     return {
@@ -223,7 +229,7 @@ export async function executeTool(
   const args = validation.data;
 
   try {
-    switch (toolCall.name) {
+    switch (name) {
       case 'check_availability': {
         const a = args as z.infer<typeof ParamsByTool.check_availability>;
         const result = hooks.checkAvailability

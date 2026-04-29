@@ -1,8 +1,16 @@
-import type { ChatCompletionMessageParam, ChatCompletion } from 'openai/resources/chat/completions';
+import type { ChatCompletionMessageParam, ChatCompletion, ChatCompletionCreateParamsNonStreaming } from 'openai/resources/chat/completions';
 import { openai, KODA_MODEL, KODA_TEMPERATURE, KODA_MAX_TOOL_ITERATIONS } from './openai';
 import { KODA_TOOL_DEFINITIONS, executeTool, type ToolContext, type ToolHooks } from './tools';
 import { detectEscalationTrigger, detectLowConfidence, cannedHandoffReply, detectLanguage } from './guard';
 import { buildSystemPrompt, type PromptContext } from './prompt';
+
+export interface KodaClient {
+  chat: {
+    completions: {
+      create: (params: ChatCompletionCreateParamsNonStreaming) => Promise<ChatCompletion>;
+    };
+  };
+}
 
 export interface RunTurnInput {
   conversationId: string;
@@ -17,7 +25,7 @@ export interface RunTurnInput {
     tool_name?: string;
   }>;
   hooks: ToolHooks;
-  client?: typeof openai;
+  client?: KodaClient;
 }
 
 export interface RunTurnResult {
@@ -46,7 +54,7 @@ function historyToOpenAiMessages(history: RunTurnInput['history']): ChatCompleti
 }
 
 export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
-  const client = input.client ?? openai;
+  const client: KodaClient = input.client ?? (openai as unknown as KodaClient);
 
   const trigger = detectEscalationTrigger(input.userMessage);
   if (trigger.matched) {
@@ -98,14 +106,15 @@ export async function runTurn(input: RunTurnInput): Promise<RunTurnResult> {
       messages.push({ role: 'assistant', content: assistantText, tool_calls: msg.tool_calls });
       for (const tc of msg.tool_calls) {
         if (tc.type !== 'function') continue;
+        const fn = (tc as { function: { name: string; arguments: string } }).function;
         const result = await executeTool(
-          { name: tc.function.name, arguments: tc.function.arguments, tool_call_id: tc.id },
+          { name: fn.name, arguments: fn.arguments, tool_call_id: tc.id },
           input.toolCtx,
           input.hooks,
         );
         toolCallsLog.push({
-          name: tc.function.name,
-          arguments: tc.function.arguments,
+          name: fn.name,
+          arguments: fn.arguments,
           result: result.content,
         });
         messages.push({ role: 'tool', content: result.content, tool_call_id: tc.id });

@@ -17,13 +17,21 @@ const toolCtx: ToolContext = {
   conversation_id: 'conv-1',
 };
 
+interface MockClient {
+  chat: {
+    completions: {
+      create: ReturnType<typeof vi.fn>;
+    };
+  };
+}
+
 function makeMockClient(
   scripts: Array<{
     content: string;
     tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
     usage?: { prompt_tokens: number; completion_tokens: number };
   }>,
-) {
+): MockClient {
   let i = 0;
   return {
     chat: {
@@ -46,7 +54,7 @@ function makeMockClient(
         }),
       },
     },
-  } as never;
+  };
 }
 
 describe('runTurn', () => {
@@ -59,7 +67,7 @@ describe('runTurn', () => {
       toolCtx,
       history: [],
       hooks: {},
-      client: mockClient,
+      client: mockClient as never,
     });
     expect(result.preTurnSkippedLLM).toBe(true);
     expect(result.escalated).toBe(true);
@@ -77,7 +85,7 @@ describe('runTurn', () => {
       toolCtx,
       history: [],
       hooks: {},
-      client: mockClient,
+      client: mockClient as never,
     });
     expect(result.preTurnSkippedLLM).toBe(false);
     expect(result.assistantMessage).toBe('Halo! Saya Koda. Mau booking?');
@@ -135,7 +143,7 @@ describe('runTurn', () => {
       toolCtx,
       history: [],
       hooks: { checkAvailability, createBooking },
-      client: mockClient,
+      client: mockClient as never,
     });
 
     expect(result.toolCalls).toHaveLength(2);
@@ -171,7 +179,7 @@ describe('runTurn', () => {
       toolCtx,
       history: [],
       hooks: { escalate },
-      client: mockClient,
+      client: mockClient as never,
     });
     expect(result.escalated).toBe(true);
     expect(result.escalationReason).toBe('tool:escalate_to_staff');
@@ -187,7 +195,7 @@ describe('runTurn', () => {
       toolCtx,
       history: [],
       hooks: {},
-      client: mockClient,
+      client: mockClient as never,
     });
     expect(result.escalated).toBe(true);
     expect(result.escalationReason).toBe('post-turn:low_confidence');
