@@ -172,6 +172,76 @@ export async function sendKodaMessageAction(input: unknown) {
     }
   }
 
+  let loyaltyCtx: PromptContext['loyalty'] = null;
+  if (org?.loyalty_enabled && convo.customer_id && customerCtx) {
+    const { data: cust } = await supabase
+      .from('customers')
+      .select('points_balance, points_lifetime, current_tier_id, is_member')
+      .eq('id', convo.customer_id)
+      .single();
+    const c = cust as
+      | {
+          points_balance: number;
+          points_lifetime: number;
+          current_tier_id: string | null;
+          is_member: boolean;
+        }
+      | null;
+    if (c?.is_member && c.current_tier_id) {
+      const { data: tiers } = await supabase
+        .from('loyalty_tiers')
+        .select('id, tier_index, name, min_points_lifetime, perks_text')
+        .eq('organization_id', convo.organization_id)
+        .order('tier_index', { ascending: true });
+      const all = (tiers ?? []) as Array<{
+        id: string;
+        tier_index: number;
+        name: string;
+        min_points_lifetime: number;
+        perks_text: string | null;
+      }>;
+      const curT = all.find((t) => t.id === c.current_tier_id);
+      const nextT = curT ? all.find((t) => t.tier_index === curT.tier_index + 1) : null;
+
+      const { data: rewards } = await supabase
+        .from('loyalty_rewards')
+        .select('id, name, type, type_value, points_cost, min_tier_index')
+        .eq('organization_id', convo.organization_id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      const eligible = (
+        (rewards ?? []) as Array<{
+          id: string;
+          name: string;
+          type: 'free_item' | 'percent_discount' | 'rupiah_discount';
+          type_value: number;
+          points_cost: number;
+          min_tier_index: number;
+        }>
+      ).filter(
+        (r) => r.points_cost <= c.points_balance && (curT?.tier_index ?? 0) >= r.min_tier_index,
+      );
+
+      if (curT) {
+        loyaltyCtx = {
+          tier_name: curT.name,
+          points_balance: c.points_balance,
+          points_lifetime: c.points_lifetime,
+          next_tier_name: nextT?.name ?? null,
+          to_next: nextT ? Math.max(0, nextT.min_points_lifetime - c.points_lifetime) : null,
+          perks_text: curT.perks_text,
+          available_rewards: eligible.map(({ id, name, type, type_value, points_cost }) => ({
+            id,
+            name,
+            type,
+            type_value,
+            points_cost,
+          })),
+        };
+      }
+    }
+  }
+
   const { data: faqRows } = await supabase
     .from('koda_faq')
     .select('question, answer')
@@ -203,7 +273,7 @@ export async function sendKodaMessageAction(input: unknown) {
     customer: customerCtx,
     faq: (faqRows ?? []) as Array<{ question: string; answer: string }>,
     specials: activeSpecials,
-    loyalty: null,
+    loyalty: loyaltyCtx,
     programName: org?.loyalty_program_name ?? 'Loyalty',
   };
 
@@ -301,6 +371,19 @@ export async function sendKodaMessageAction(input: unknown) {
         } as never)
         .eq('id', conversationId);
       return { ok: true };
+    },
+    getLoyaltyStatus: async (customerId) => {
+      void customerId;
+      return loyaltyCtx ?? { error: 'not_member' };
+    },
+    redeemReward: async (rewardId, bookingId) => {
+      try {
+        const m = await import('@/lib/actions/loyalty-redeem');
+        await m.redeemRewardAction({ reward_id: rewardId, booking_id: bookingId });
+        return { ok: true, reward_id: rewardId, booking_id: bookingId };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : 'failed' };
+      }
     },
   };
 
