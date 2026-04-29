@@ -78,11 +78,13 @@ $$;
 -- Trigger functions like handle_new_user are invoked by the trigger machinery
 -- regardless of grants, so revoking PUBLIC there is safe.
 
-revoke execute on function public.get_my_org_id()                                    from public;
-revoke execute on function public.get_my_role()                                      from public;
-revoke execute on function public.handle_new_user()                                  from public;
-revoke execute on function public.increment_koda_tokens(uuid, int, int, int)         from public;
+-- Use REVOKE ALL with canonical type names (integer, not int) — Postgres
+-- function-signature matching for REVOKE is finicky around type aliases.
+revoke all on function public.get_my_org_id()                                          from public;
+revoke all on function public.get_my_role()                                            from public;
+revoke all on function public.handle_new_user()                                        from public;
+revoke all on function public.increment_koda_tokens(uuid, integer, integer, integer)   from public;
 
-grant execute on function public.get_my_org_id()                                     to authenticated;
-grant execute on function public.get_my_role()                                       to authenticated;
-grant execute on function public.increment_koda_tokens(uuid, int, int, int)          to authenticated;
+grant execute on function public.get_my_org_id()                                       to authenticated;
+grant execute on function public.get_my_role()                                         to authenticated;
+grant execute on function public.increment_koda_tokens(uuid, integer, integer, integer) to authenticated;
