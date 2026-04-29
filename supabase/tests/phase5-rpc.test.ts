@@ -16,6 +16,7 @@ let bookingId: string;
 let goldTierId: string;
 let dessertRewardId: string;
 let goldOnlyRewardId: string;
+let expensiveRewardId: string;
 
 beforeAll(async () => {
   admin = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -117,6 +118,20 @@ beforeAll(async () => {
     .select('id')
     .single();
   goldOnlyRewardId = r2!.id;
+
+  const { data: r3 } = await admin
+    .from('loyalty_rewards')
+    .insert({
+      organization_id: orgId,
+      name: 'RPC Expensive',
+      type: 'free_item',
+      points_cost: 10000,
+      min_tier_index: 0,
+      is_active: true,
+    } as never)
+    .select('id')
+    .single();
+  expensiveRewardId = r3!.id;
 });
 
 afterAll(async () => {
@@ -126,6 +141,7 @@ afterAll(async () => {
   await admin.from('tables').delete().eq('id', tableId);
   await admin.from('loyalty_rewards').delete().eq('id', dessertRewardId);
   await admin.from('loyalty_rewards').delete().eq('id', goldOnlyRewardId);
+  await admin.from('loyalty_rewards').delete().eq('id', expensiveRewardId);
   await admin.from('customers').delete().eq('id', customerId);
   await admin.auth.admin.deleteUser(adminUserId);
   await admin.from('organizations').update({ loyalty_enabled: false } as never).eq('id', orgId);
@@ -172,13 +188,7 @@ describe('complete_booking_with_loyalty RPC', () => {
     const { error } = await adminClient.rpc('complete_booking_with_loyalty', {
       p_booking_id: bookingId,
       p_bill_idr: 100000,
-      p_redemption_ids: [
-        dessertRewardId,
-        dessertRewardId,
-        dessertRewardId,
-        dessertRewardId,
-        dessertRewardId,
-      ],
+      p_redemption_ids: [expensiveRewardId], // 10,000 pts > 825 balance
     } as never);
     expect(error).toBeTruthy();
     expect(error?.message).toMatch(/insufficient_balance/);
