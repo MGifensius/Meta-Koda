@@ -12,10 +12,13 @@ export async function updateOwnProfileAction(input: unknown) {
   const parsed = ProfileSelfUpdateSchema.parse(input);
 
   const supabase = await createServerClient();
+  // avatar_url is intentionally NOT updated here — it's owned by
+  // updateAvatarAction. Including it would clobber the path the upload flow
+  // just stored, since the ProfileForm doesn't include avatar_url and Zod
+  // parses missing fields as undefined.
   const { error } = await supabase.from('profiles')
     .update({
       full_name: parsed.full_name,
-      avatar_url: parsed.avatar_url ?? null,
     } as never)
     .eq('id', profile.id);
   if (error) throw new ActionError(error.code ?? 'DB', error.message);
@@ -32,10 +35,16 @@ export async function updateAvatarAction(avatarPath: string | null) {
   const parsed = AvatarPathSchema.parse(avatarPath);
 
   const supabase = await createServerClient();
-  const { error } = await supabase.from('profiles')
+  // .select('id') so a 0-row UPDATE (silent RLS denial) shows up as data.length=0
+  // instead of being indistinguishable from success.
+  const { data, error } = await supabase.from('profiles')
     .update({ avatar_url: parsed } as never)
-    .eq('id', profile.id);
+    .eq('id', profile.id)
+    .select('id');
   if (error) throw new ActionError(error.code ?? 'DB', error.message);
+  if (!data || data.length === 0) {
+    throw new ActionError('NOT_UPDATED', 'Avatar update did not match any row (likely RLS).');
+  }
   revalidatePath('/settings');
   return { ok: true };
 }
