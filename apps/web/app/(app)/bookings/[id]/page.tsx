@@ -6,7 +6,12 @@ import { createServerClient } from '@/lib/supabase/server';
 import { BookingStatusPill } from '@/components/status-pill';
 import { BookingForm } from '@/components/booking-form';
 import { BookingActions } from './booking-actions';
-import type { BookingStatus, BookingSource } from '@buranchi/shared';
+import {
+  LoyaltyCompletionSection,
+  type AvailableReward,
+  type PreApplied,
+} from '@/components/loyalty-completion-section';
+import type { BookingStatus, BookingSource, LoyaltyRewardType } from '@buranchi/shared';
 
 interface BookingDetail {
   id: string;
@@ -18,7 +23,15 @@ interface BookingDetail {
   special_request: string | null;
   internal_notes: string | null;
   cancelled_reason: string | null;
-  customer: { id: string; display_id: string; full_name: string };
+  customer: {
+    id: string;
+    display_id: string;
+    full_name: string;
+    is_member: boolean;
+    points_balance: number;
+    points_lifetime: number;
+    current_tier_id: string | null;
+  };
   table: { id: string; code: string };
 }
 
@@ -42,7 +55,7 @@ export default async function BookingDetailPage({
       `
       id, starts_at, ends_at, party_size, source, status,
       special_request, internal_notes, cancelled_reason,
-      customer:customers!inner(id, display_id, full_name),
+      customer:customers!inner(id, display_id, full_name, is_member, points_balance, points_lifetime, current_tier_id),
       table:tables!inner(id, code)
     `,
     )
@@ -53,6 +66,76 @@ export default async function BookingDetailPage({
 
   const canMutate = profile.role === 'admin' || profile.role === 'front_desk';
   const canEdit = canMutate && (b.status === 'confirmed' || b.status === 'seated');
+
+  let showLoyaltyCompletion = false;
+  let preApplied: PreApplied[] = [];
+  let availableRewards: AvailableReward[] = [];
+  let earnRate = 10000;
+  let tierName = 'Bronze';
+  let tierIndex = 0;
+  let nextTierName: string | null = null;
+  let nextTierThreshold: number | null = null;
+
+  if ((b.status === 'confirmed' || b.status === 'seated') && b.customer.is_member && canMutate) {
+    const { data: orgRow } = await supabase
+      .from('organizations')
+      .select('loyalty_enabled, loyalty_earn_rate_idr_per_point')
+      .eq('id', profile.organization_id)
+      .single();
+    const orgInfo = orgRow as
+      | { loyalty_enabled: boolean; loyalty_earn_rate_idr_per_point: number }
+      | null;
+    if (orgInfo?.loyalty_enabled) {
+      showLoyaltyCompletion = true;
+      earnRate = orgInfo.loyalty_earn_rate_idr_per_point;
+
+      const { data: applied } = await supabase
+        .from('loyalty_redemptions')
+        .select('id, reward_name, points_spent, created_at')
+        .eq('booking_id', b.id)
+        .eq('status', 'applied');
+      preApplied = (applied ?? []) as PreApplied[];
+
+      const { data: rewards } = await supabase
+        .from('loyalty_rewards')
+        .select('id, name, type, type_value, points_cost, min_tier_index, is_active')
+        .eq('organization_id', profile.organization_id)
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      availableRewards = (
+        (rewards ?? []) as Array<{
+          id: string;
+          name: string;
+          type: LoyaltyRewardType;
+          type_value: number;
+          points_cost: number;
+          min_tier_index: number;
+        }>
+      ).filter((r) => !preApplied.some((p) => p.reward_name === r.name));
+
+      const { data: tiers } = await supabase
+        .from('loyalty_tiers')
+        .select('id, tier_index, name, min_points_lifetime')
+        .eq('organization_id', profile.organization_id)
+        .order('tier_index', { ascending: true });
+      const all = (tiers ?? []) as Array<{
+        id: string;
+        tier_index: number;
+        name: string;
+        min_points_lifetime: number;
+      }>;
+      const cur = all.find((t) => t.id === b.customer.current_tier_id);
+      if (cur) {
+        tierName = cur.name;
+        tierIndex = cur.tier_index;
+        const next = all.find((t) => t.tier_index === cur.tier_index + 1);
+        if (next) {
+          nextTierName = next.name;
+          nextTierThreshold = next.min_points_lifetime;
+        }
+      }
+    }
+  }
 
   return (
     <>
@@ -73,17 +156,13 @@ export default async function BookingDetailPage({
           <div className="flex items-center gap-2">
             <BookingStatusPill status={b.status} />
             <span className="text-[12px] text-muted">
-              {new Date(b.starts_at).toLocaleString()} —{' '}
-              {new Date(b.ends_at).toLocaleString()}
+              {new Date(b.starts_at).toLocaleString()} — {new Date(b.ends_at).toLocaleString()}
             </span>
           </div>
           <Row
             label="Customer"
             value={
-              <Link
-                href={`/customers/${b.customer.id}`}
-                className="text-accent hover:underline"
-              >
+              <Link href={`/customers/${b.customer.id}`} className="text-accent hover:underline">
                 {b.customer.display_id} · {b.customer.full_name}
               </Link>
             }
@@ -104,12 +183,28 @@ export default async function BookingDetailPage({
           ) : null}
         </Card>
 
+        {showLoyaltyCompletion ? (
+          <LoyaltyCompletionSection
+            bookingId={b.id}
+            customerName={b.customer.full_name}
+            tierName={tierName}
+            customerTierIndex={tierIndex}
+            pointsBalance={b.customer.points_balance}
+            pointsLifetime={b.customer.points_lifetime}
+            nextTierName={nextTierName}
+            nextTierThreshold={nextTierThreshold}
+            earnRateIdrPerPoint={earnRate}
+            preApplied={preApplied}
+            available={availableRewards}
+          />
+        ) : null}
+
         {canMutate && (b.status === 'confirmed' || b.status === 'seated') ? (
           <Card>
             <h2 className="text-[10px] uppercase tracking-[0.08em] text-muted font-semibold mb-3">
               Actions
             </h2>
-            <BookingActions id={b.id} status={b.status} />
+            <BookingActions id={b.id} status={b.status} hideComplete={showLoyaltyCompletion} />
           </Card>
         ) : null}
 

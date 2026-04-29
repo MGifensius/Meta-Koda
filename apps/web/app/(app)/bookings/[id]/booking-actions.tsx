@@ -6,7 +6,15 @@ import { Button } from '@buranchi/ui';
 import { transitionBookingAction } from '@/lib/actions/bookings';
 import type { BookingStatus } from '@buranchi/shared';
 
-export function BookingActions({ id, status }: { id: string; status: BookingStatus }) {
+export function BookingActions({
+  id,
+  status,
+  hideComplete = false,
+}: {
+  id: string;
+  status: BookingStatus;
+  hideComplete?: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | undefined>();
@@ -47,9 +55,11 @@ export function BookingActions({ id, status }: { id: string; status: BookingStat
         ) : null}
         {status === 'seated' ? (
           <>
-            <Button disabled={pending} onClick={() => transition('completed')}>
-              Mark completed
-            </Button>
+            {!hideComplete ? (
+              <Button disabled={pending} onClick={() => transition('completed')}>
+                Mark completed
+              </Button>
+            ) : null}
             <Button variant="outline" disabled={pending} onClick={() => transition('cancelled')}>
               Cancel
             </Button>
