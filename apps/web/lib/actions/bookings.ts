@@ -15,6 +15,7 @@ import {
   computeEndsAt,
   type BookingStatus,
   CustomerInputSchema,
+  CompleteBookingInputSchema,
 } from '@buranchi/shared';
 import { requireRole } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
@@ -192,6 +193,36 @@ export async function transitionBookingAction(id: string, input: unknown) {
   if (parsed.next === 'cancelled') {
     update.cancelled_at = nowIso;
     if (parsed.reason !== undefined) update.cancelled_reason = parsed.reason;
+
+    const { data: applied } = await supabase
+      .from('loyalty_redemptions')
+      .select('id, customer_id, points_spent')
+      .eq('booking_id', id)
+      .eq('status', 'applied');
+    const rows = (applied ?? []) as Array<{ id: string; customer_id: string; points_spent: number }>;
+    for (const r of rows) {
+      await supabase
+        .from('loyalty_redemptions')
+        .update({
+          status: 'voided',
+          voided_at: nowIso,
+          voided_reason: 'booking_cancelled',
+        } as never)
+        .eq('id', r.id);
+
+      const { data: c } = await supabase
+        .from('customers')
+        .select('points_balance')
+        .eq('id', r.customer_id)
+        .single();
+      await supabase
+        .from('customers')
+        .update({
+          points_balance:
+            ((c as { points_balance: number } | null)?.points_balance ?? 0) + r.points_spent,
+        } as never)
+        .eq('id', r.customer_id);
+    }
   }
 
   const { error } = await supabase.from('bookings').update(update as never).eq('id', id);
@@ -199,4 +230,54 @@ export async function transitionBookingAction(id: string, input: unknown) {
   revalidatePath('/bookings');
   revalidatePath(`/bookings/${id}`);
   revalidatePath('/floor');
+}
+
+export async function completeBookingAction(bookingId: string, input: unknown) {
+  await requireRole(['admin', 'front_desk']);
+  const parsed = CompleteBookingInputSchema.parse(input);
+  const supabase = await createServerClient();
+
+  const { data } = await supabase
+    .from('bookings')
+    .select(
+      `
+      id, organization_id, customer_id,
+      customer:customers!inner(is_member),
+      org:organizations!inner(loyalty_enabled)
+    `,
+    )
+    .eq('id', bookingId)
+    .single();
+  const ctx = data as unknown as
+    | {
+        id: string;
+        customer_id: string;
+        customer: { is_member: boolean };
+        org: { loyalty_enabled: boolean };
+      }
+    | null;
+  if (!ctx) throw new ActionError('NOT_FOUND', 'Booking not found.');
+
+  const useLoyalty =
+    parsed.bill_idr !== undefined &&
+    ctx.customer.is_member === true &&
+    ctx.org.loyalty_enabled === true;
+
+  if (!useLoyalty) {
+    return transitionBookingAction(bookingId, { next: 'completed' });
+  }
+
+  const { data: result, error } = await supabase.rpc('complete_booking_with_loyalty', {
+    p_booking_id: bookingId,
+    p_bill_idr: parsed.bill_idr!,
+    p_redemption_ids: parsed.reward_redemption_ids,
+  } as never);
+  if (error) {
+    const msg = error.message ?? 'failed';
+    throw new ActionError(error.code ?? 'RPC_ERROR', msg);
+  }
+  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath('/bookings');
+  revalidatePath(`/customers/${ctx.customer_id}`);
+  return result;
 }
