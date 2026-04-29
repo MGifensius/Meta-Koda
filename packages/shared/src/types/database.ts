@@ -186,13 +186,18 @@ export type Database = {
           birth_date: string | null
           created_at: string
           created_by: string | null
+          current_tier_id: string | null
           display_id: string
           email: string | null
           full_name: string
           id: string
+          is_member: boolean
+          member_since: string | null
           notes: string | null
           organization_id: string
           phone: string | null
+          points_balance: number
+          points_lifetime: number
           tags: string[]
           updated_at: string
         }
@@ -200,13 +205,18 @@ export type Database = {
           birth_date?: string | null
           created_at?: string
           created_by?: string | null
+          current_tier_id?: string | null
           display_id: string
           email?: string | null
           full_name: string
           id?: string
+          is_member?: boolean
+          member_since?: string | null
           notes?: string | null
           organization_id: string
           phone?: string | null
+          points_balance?: number
+          points_lifetime?: number
           tags?: string[]
           updated_at?: string
         }
@@ -214,13 +224,18 @@ export type Database = {
           birth_date?: string | null
           created_at?: string
           created_by?: string | null
+          current_tier_id?: string | null
           display_id?: string
           email?: string | null
           full_name?: string
           id?: string
+          is_member?: boolean
+          member_since?: string | null
           notes?: string | null
           organization_id?: string
           phone?: string | null
+          points_balance?: number
+          points_lifetime?: number
           tags?: string[]
           updated_at?: string
         }
@@ -230,6 +245,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_current_tier_id_fkey"
+            columns: ["current_tier_id"]
+            isOneToOne: false
+            referencedRelation: "loyalty_tiers"
             referencedColumns: ["id"]
           },
           {
@@ -456,12 +478,316 @@ export type Database = {
           },
         ]
       }
+      loyalty_adjustments: {
+        Row: {
+          affects_lifetime: boolean
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          delta_points: number
+          id: string
+          organization_id: string
+          reason: string
+        }
+        Insert: {
+          affects_lifetime?: boolean
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          delta_points: number
+          id?: string
+          organization_id: string
+          reason: string
+        }
+        Update: {
+          affects_lifetime?: boolean
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          delta_points?: number
+          id?: string
+          organization_id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_adjustments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_adjustments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_redemptions: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          organization_id: string
+          points_spent: number
+          reward_id: string | null
+          reward_name: string
+          reward_type: Database["public"]["Enums"]["loyalty_reward_type"]
+          reward_type_value: number
+          status: string
+          voided_at: string | null
+          voided_reason: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          organization_id: string
+          points_spent: number
+          reward_id?: string | null
+          reward_name: string
+          reward_type: Database["public"]["Enums"]["loyalty_reward_type"]
+          reward_type_value?: number
+          status?: string
+          voided_at?: string | null
+          voided_reason?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          organization_id?: string
+          points_spent?: number
+          reward_id?: string | null
+          reward_name?: string
+          reward_type?: Database["public"]["Enums"]["loyalty_reward_type"]
+          reward_type_value?: number
+          status?: string
+          voided_at?: string | null
+          voided_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_redemptions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_redemptions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_redemptions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_redemptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_redemptions_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "loyalty_rewards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_rewards: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          min_tier_index: number
+          name: string
+          organization_id: string
+          points_cost: number
+          sort_order: number
+          type: Database["public"]["Enums"]["loyalty_reward_type"]
+          type_value: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          min_tier_index?: number
+          name: string
+          organization_id: string
+          points_cost: number
+          sort_order?: number
+          type: Database["public"]["Enums"]["loyalty_reward_type"]
+          type_value?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          min_tier_index?: number
+          name?: string
+          organization_id?: string
+          points_cost?: number
+          sort_order?: number
+          type?: Database["public"]["Enums"]["loyalty_reward_type"]
+          type_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_rewards_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          min_points_lifetime: number
+          name: string
+          organization_id: string
+          perks_text: string | null
+          tier_index: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          min_points_lifetime: number
+          name: string
+          organization_id: string
+          perks_text?: string | null
+          tier_index: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          min_points_lifetime?: number
+          name?: string
+          organization_id?: string
+          perks_text?: string | null
+          tier_index?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_tiers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loyalty_transactions: {
+        Row: {
+          bill_idr: number
+          booking_id: string | null
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          earn_rate_idr_per_point: number
+          id: string
+          organization_id: string
+          points_earned: number
+        }
+        Insert: {
+          bill_idr: number
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          earn_rate_idr_per_point: number
+          id?: string
+          organization_id: string
+          points_earned: number
+        }
+        Update: {
+          bill_idr?: number
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          earn_rate_idr_per_point?: number
+          id?: string
+          organization_id?: string
+          points_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loyalty_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loyalty_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           address: string | null
           created_at: string
           id: string
           logo_url: string | null
+          loyalty_earn_rate_idr_per_point: number
+          loyalty_enabled: boolean
+          loyalty_program_name: string
           name: string
           operating_hours: string | null
           slug: string
@@ -473,6 +799,9 @@ export type Database = {
           created_at?: string
           id?: string
           logo_url?: string | null
+          loyalty_earn_rate_idr_per_point?: number
+          loyalty_enabled?: boolean
+          loyalty_program_name?: string
           name: string
           operating_hours?: string | null
           slug: string
@@ -484,6 +813,9 @@ export type Database = {
           created_at?: string
           id?: string
           logo_url?: string | null
+          loyalty_earn_rate_idr_per_point?: number
+          loyalty_enabled?: boolean
+          loyalty_program_name?: string
           name?: string
           operating_hours?: string | null
           slug?: string
@@ -588,14 +920,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      complete_booking_with_loyalty: {
+        Args: {
+          p_bill_idr: number
+          p_booking_id: string
+          p_redemption_ids: string[]
+        }
+        Returns: Json
+      }
       generate_crockford_id: {
         Args: { length: number; prefix: string }
         Returns: string
-      }
-      get_my_org_id: { Args: never; Returns: string }
-      get_my_role: {
-        Args: never
-        Returns: Database["public"]["Enums"]["user_role"]
       }
       increment_koda_tokens: {
         Args: {
@@ -606,8 +941,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      show_limit: { Args: never; Returns: number }
-      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       booking_source: "manual" | "walk_in"
@@ -618,6 +951,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "no_show"
+      loyalty_reward_type: "free_item" | "percent_discount" | "rupiah_discount"
       profile_status: "active" | "suspended"
       table_status:
         | "available"
@@ -762,6 +1096,7 @@ export const Constants = {
         "cancelled",
         "no_show",
       ],
+      loyalty_reward_type: ["free_item", "percent_discount", "rupiah_discount"],
       profile_status: ["active", "suspended"],
       table_status: [
         "available",
