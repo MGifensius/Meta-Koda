@@ -1,6 +1,6 @@
 # Meta Business + WhatsApp Onboarding (Vendor Model)
 
-**Audience:** Metaseti Digital Indonesia, selling Buranchi Koda as a subscription SaaS to restaurants.
+**Audience:** Metaseti Digital Indonesia, selling Meta-Koda as a subscription SaaS to restaurants. Buranchi is the launch tenant; subsequent restaurants onboard the same way.
 **Goal:** Get WhatsApp Business Platform (Cloud API) access so Phase 3 messaging can ship.
 
 ---
@@ -111,7 +111,7 @@ The number must be able to receive an SMS or voice call for the OTP, on a phone 
 1. In Buranchi's Business Manager → **WhatsApp Manager → Create account**.
 2. Add the phone number from 4.2.
 3. Enter Display Name — what customers see when they receive a message:
-   - Must be related to the business (Meta enforces this — "Buranchi", "Buranchi Koda", "Buranchi Booking" all OK; "Hot Reservations" not OK).
+   - Must be related to the business (Meta enforces this — for Buranchi, "Buranchi", "Buranchi Booking", "Buranchi Resto" all OK; "Hot Reservations" not OK). Each tenant picks their own display name; Meta-Koda the product never appears as a WhatsApp display name.
    - Display Name approval takes 1–3 business days.
 4. Pick category: "Restaurant" or "Food & Beverage".
 
@@ -132,7 +132,7 @@ Quality rating drops if customers report messages as spam. Rate is per-WABA, so 
 
 ## 5. Indonesian regulatory notes
 
-- **PSE (Penyelenggara Sistem Elektronik) registration** — Buranchi Koda as a SaaS is technically a PSE Privat. Once you're past 1 active customer, register with Kominfo. Simple online form.
+- **PSE (Penyelenggara Sistem Elektronik) registration** — Meta-Koda as a SaaS is technically a PSE Privat. Once you're past 1 active customer, register with Kominfo. Simple online form.
 - **PDP Law (UU PDP 27/2022)** — Personal Data Protection. Effective October 2024. Customer data on WhatsApp falls under this. Have a `Privacy Policy` page on your marketing site that covers WhatsApp data flows. Required language: Bahasa Indonesia version exists.
 - **No OTT messaging block** — Indonesia has no equivalent to India's TRAI restrictions on WhatsApp marketing. You're fine.
 

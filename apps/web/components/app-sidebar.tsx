@@ -35,7 +35,7 @@ export function AppSidebar({
 
   return (
     <Sidebar>
-      <SidebarLogo>Buranchi</SidebarLogo>
+      <SidebarLogo>{organizationName}</SidebarLogo>
       {NAV_GROUPS.map((group) => (
         <SidebarSection key={group.label} label={group.label}>
           {group.items.map((item) => {

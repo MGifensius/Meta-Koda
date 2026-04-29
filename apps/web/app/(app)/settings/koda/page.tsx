@@ -66,7 +66,7 @@ export default async function KodaSettingsPage() {
           <Card>
             <p className="text-[12px] text-fg">
               Your AI booking assistant is named <span className="font-semibold">Koda</span>. Powered
-              by Buranchi Koda (Metaseti Digital Indonesia).
+              by Meta-Koda (Metaseti Digital Indonesia).
             </p>
             <p className="text-[11px] text-muted mt-2">
               Persona is fixed in v1. Per-tenant rename will arrive in a later release.

@@ -9,12 +9,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="absolute bottom-[20%] right-[18%] h-28 w-56 rounded-full bg-white/40 blur-3xl"></div>
       </div>
 
-      {/* Brand mark top-left */}
+      {/* Brand mark top-left — product name (pre-auth, no tenant context yet) */}
       <div className="absolute top-6 left-6 flex items-center gap-2">
         <div className="h-7 w-7 rounded-tile bg-fg flex items-center justify-center">
-          <span className="text-white font-bold text-[12px]">B</span>
+          <span className="text-white font-bold text-[12px]">M</span>
         </div>
-        <span className="font-bold text-[15px] text-fg">Buranchi</span>
+        <span className="font-bold text-[15px] text-fg">Meta-Koda</span>
       </div>
 
       <div className="relative w-full max-w-[420px]">

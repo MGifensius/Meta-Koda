@@ -9,8 +9,8 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Buranchi',
-  description: 'Buranchi customer operations dashboard',
+  title: 'Meta-Koda',
+  description: 'Multi-tenant restaurant operations platform by Metaseti Digital Indonesia.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

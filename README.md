@@ -1,6 +1,8 @@
-# Buranchi Koda
+# Meta-Koda
 
-Multi-tenant restaurant operations platform — Buranchi (and future SaaS tenants).
+Multi-tenant restaurant operations platform built by **Metaseti Digital Indonesia**. Sold as a SaaS subscription. Buranchi is the launch tenant; the architecture is designed to onboard additional restaurants without code changes.
+
+> **Product:** Meta-Koda  ·  **Vendor:** Metaseti Digital Indonesia  ·  **AI persona:** Koda  ·  **Repository / package names** still use the legacy `buranchi-koda` and `@buranchi/*` workspace identifiers — these are internal-only and not user-facing; renaming would touch every import without changing what users see.
 
 **Shipped phases:**
 - **Phase 1 — System Foundation:** multi-tenant Postgres + RLS, auth, customer database, settings, design system
