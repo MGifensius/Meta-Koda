@@ -12,9 +12,20 @@ export interface CustomerRow {
   phone: string | null;
   tags: string[];
   created_at: string;
+  is_member: boolean;
+  points_balance: number;
+  tier_name: string | null;
+  tier_index: number | null;
 }
 
-const columns: ColumnDef<CustomerRow>[] = [
+const TIER_COLOR: Record<number, string> = {
+  0: 'bg-row-divider text-muted',
+  1: 'bg-accent-soft text-accent',
+  2: 'bg-success-soft text-success',
+  3: 'bg-fg text-white',
+};
+
+const baseColumns: ColumnDef<CustomerRow>[] = [
   {
     header: 'ID',
     accessorKey: 'display_id',
@@ -40,7 +51,9 @@ const columns: ColumnDef<CustomerRow>[] = [
       const tags = getValue<string[]>() ?? [];
       return (
         <div className="flex flex-wrap gap-1">
-          {tags.map((t) => <Badge key={t}>{t}</Badge>)}
+          {tags.map((t) => (
+            <Badge key={t}>{t}</Badge>
+          ))}
         </div>
       );
     },
@@ -55,7 +68,45 @@ const columns: ColumnDef<CustomerRow>[] = [
   },
 ];
 
-export function CustomerListClient({ initialRows, initialQuery }: { initialRows: CustomerRow[]; initialQuery: string }) {
+const loyaltyColumns: ColumnDef<CustomerRow>[] = [
+  {
+    header: 'Tier',
+    accessorKey: 'tier_name',
+    cell: ({ row }) => {
+      const r = row.original;
+      if (!r.is_member || r.tier_name == null) {
+        return <span className="text-border">—</span>;
+      }
+      const color = TIER_COLOR[r.tier_index ?? 0] ?? TIER_COLOR[0];
+      return (
+        <span
+          className={`inline-flex items-center rounded-pill px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${color}`}
+        >
+          {r.tier_name}
+        </span>
+      );
+    },
+  },
+  {
+    header: 'Points',
+    accessorKey: 'points_balance',
+    cell: ({ row }) => {
+      const r = row.original;
+      if (!r.is_member) return <span className="text-border">—</span>;
+      return <span className="font-mono text-fg">{r.points_balance.toLocaleString()}</span>;
+    },
+  },
+];
+
+export function CustomerListClient({
+  initialRows,
+  initialQuery,
+  loyaltyEnabled,
+}: {
+  initialRows: CustomerRow[];
+  initialQuery: string;
+  loyaltyEnabled: boolean;
+}) {
   const router = useRouter();
   const [q, setQ] = React.useState(initialQuery);
 
@@ -68,10 +119,22 @@ export function CustomerListClient({ initialRows, initialQuery }: { initialRows:
     return () => clearTimeout(handle);
   }, [q, router]);
 
+  const columns = React.useMemo(() => {
+    if (!loyaltyEnabled) return baseColumns;
+    // Insert Tier + Points after Phone (index 3).
+    const next = [...baseColumns];
+    next.splice(3, 0, ...loyaltyColumns);
+    return next;
+  }, [loyaltyEnabled]);
+
   return (
     <div className="space-y-3">
       <Input placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
-      <DataTable columns={columns} data={initialRows} onRowClick={(row) => router.push(`/customers/${row.id}`)} />
+      <DataTable
+        columns={columns}
+        data={initialRows}
+        onRowClick={(row) => router.push(`/customers/${row.id}`)}
+      />
     </div>
   );
 }
