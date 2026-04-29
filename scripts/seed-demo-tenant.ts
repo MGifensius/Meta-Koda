@@ -83,12 +83,10 @@ async function main() {
   if (existing) {
     console.error('');
     console.error(`Demo tenant already exists (id: ${existing.id}, name: ${existing.name}).`);
-    console.error('To reseed, delete it first via SQL:');
-    console.error(`  DELETE FROM organizations WHERE slug = '${DEMO.slug}';`);
-    console.error('Cascading FKs will clean up tables, customers, bookings, loyalty data.');
-    console.error('You will also need to delete the auth user separately:');
-    console.error(`  Auth → Users → find ${DEMO.adminEmail} → Delete`);
-    process.exit(1);
+    console.error('To reseed with a fresh password, run:');
+    console.error('  pnpm reset:demo && pnpm seed:demo');
+    process.exitCode = 1;
+    return;
   }
 
   console.log(`Creating "${DEMO.name}" (slug=${DEMO.slug})…`);
@@ -561,5 +559,5 @@ async function main() {
 
 main().catch((err) => {
   console.error('seed:demo failed:', err);
-  process.exit(1);
+  process.exitCode = 1;
 });
