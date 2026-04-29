@@ -823,6 +823,7 @@ Tracked here so we don't pull them in:
 - **Cross-tenant loyalty** — a Buranchi member is NOT a member at restaurant 2; every tenant has its own program.
 - **Offline / queued earn** — if the bill amount needs editing later, admin uses `adjustPointsAction` rather than re-completing the booking.
 - **Catalog versioning** — when admin changes a reward, the snapshot on existing redemptions persists, but there's no formal "v1 / v2" of a reward.
+- **Proactive Koda reminders** — sending the customer a 1-day-before reminder and a 30-minutes-before confirmation (with 15-minute window before auto-release) is a separate **Phase 4.5 — Koda Proactive Layer** that introduces a scheduler, outbound messaging templates (Meta-approved on the WhatsApp side, blocking on Phase 3), and a `confirmation_pending` booking sub-state with timeout-based auto-cancellation. Tracked separately so Phase 5 stays focused on points/tier mechanics.
 
 ---
 
