@@ -8,7 +8,15 @@ import { ROLE_LABELS } from '@buranchi/shared';
 import { NAV_GROUPS } from '@/lib/nav/items';
 import type { Profile } from '@/lib/auth/server';
 
-export function AppSidebar({ profile, organizationName }: { profile: Profile; organizationName: string }) {
+export function AppSidebar({
+  profile,
+  organizationName,
+  avatarSignedUrl,
+}: {
+  profile: Profile;
+  organizationName: string;
+  avatarSignedUrl: string | null;
+}) {
   const pathname = usePathname();
   const [mounted, setMounted] = React.useState(false);
 
@@ -45,7 +53,7 @@ export function AppSidebar({ profile, organizationName }: { profile: Profile; or
         </SidebarSection>
       ))}
       <SidebarFooter>
-        <UserAvatar initials={profile.full_name} size="sm" />
+        <UserAvatar src={avatarSignedUrl} initials={profile.full_name} size="sm" />
         <div className="min-w-0">
           <p className="text-[12px] font-medium text-fg truncate">{profile.full_name}</p>
           <p className="text-[10px] text-muted truncate">
