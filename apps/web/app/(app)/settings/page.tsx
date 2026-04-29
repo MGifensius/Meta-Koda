@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Building2, Users, Grid3x3, Sparkles, ChevronRight } from 'lucide-react';
+import { Building2, Users, Grid3x3, Trophy, Sparkles, ChevronRight } from 'lucide-react';
 import { Topbar } from '@buranchi/ui';
 import { ROLE_LABELS } from '@buranchi/shared';
 import { requireProfile } from '@/lib/auth/server';
@@ -71,6 +71,12 @@ export default async function SettingsPage() {
                 description="Add, edit, and manage tables shown on the Floor view"
               />
               <SettingsLinkRow
+                href="/settings/loyalty"
+                icon={<Trophy className="h-4 w-4" />}
+                title="Loyalty program"
+                description="Configure tiers, rewards, earn rate, and member activity"
+              />
+              <SettingsLinkRow
                 href="/settings/koda"
                 icon={<Sparkles className="h-4 w-4" />}
                 title="Koda AI assistant"
@@ -128,7 +134,12 @@ function SettingsLinkRow({
   title,
   description,
 }: {
-  href: '/settings/organization' | '/settings/users' | '/settings/tables' | '/settings/koda';
+  href:
+    | '/settings/organization'
+    | '/settings/users'
+    | '/settings/tables'
+    | '/settings/koda'
+    | '/settings/loyalty';
   icon: React.ReactNode;
   title: string;
   description: string;
