@@ -5,7 +5,6 @@ import {
   Calendar,
   Sparkles,
   MessageCircle,
-  Star,
   Megaphone,
   Settings,
 } from 'lucide-react';
@@ -35,7 +34,6 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Coming Soon',
     items: [
       { label: 'WhatsApp', href: '#', icon: MessageCircle, comingSoon: true },
-      { label: 'Loyalty', href: '#', icon: Star, comingSoon: true },
       { label: 'Marketing', href: '#', icon: Megaphone, comingSoon: true },
     ],
   },
@@ -46,6 +44,8 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 ];
 
 export function visibleNavGroups(role: UserRole) {
-  void role;
-  return NAV_GROUPS;
+  return NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter((i) => !i.adminOnly || role === 'admin'),
+  })).filter((g) => g.items.length > 0);
 }
