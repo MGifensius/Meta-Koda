@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Building2, Users, Grid3x3, ChevronRight } from 'lucide-react';
+import { Building2, Users, Grid3x3, Sparkles, ChevronRight } from 'lucide-react';
 import { Topbar } from '@buranchi/ui';
 import { ROLE_LABELS } from '@buranchi/shared';
 import { requireProfile } from '@/lib/auth/server';
@@ -56,6 +56,12 @@ export default async function SettingsPage() {
                 description="Add, edit, and manage tables shown on the Floor view"
               />
               <SettingsLinkRow
+                href="/settings/koda"
+                icon={<Sparkles className="h-4 w-4" />}
+                title="Koda AI assistant"
+                description="Configure FAQ, specials, and limits for your AI booking agent"
+              />
+              <SettingsLinkRow
                 href="/settings/users"
                 icon={<Users className="h-4 w-4" />}
                 title="Manage team"
@@ -107,7 +113,7 @@ function SettingsLinkRow({
   title,
   description,
 }: {
-  href: '/settings/organization' | '/settings/users' | '/settings/tables';
+  href: '/settings/organization' | '/settings/users' | '/settings/tables' | '/settings/koda';
   icon: React.ReactNode;
   title: string;
   description: string;

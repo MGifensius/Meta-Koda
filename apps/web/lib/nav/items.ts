@@ -3,6 +3,7 @@ import {
   Map,
   Users,
   Calendar,
+  Sparkles,
   MessageCircle,
   Star,
   Megaphone,
@@ -27,6 +28,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { label: 'Floor', href: '/floor', icon: Map },
       { label: 'Customers', href: '/customers', icon: Users },
       { label: 'Bookings', href: '/bookings', icon: Calendar },
+      { label: 'Koda', href: '/koda', icon: Sparkles },
     ],
   },
   {
