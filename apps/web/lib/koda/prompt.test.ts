@@ -21,6 +21,8 @@ const baseCtx: PromptContext = {
       ends_on: '2026-12-31',
     },
   ],
+  loyalty: null,
+  programName: 'Buranchi Rewards',
 };
 
 describe('buildSystemPrompt', () => {
@@ -82,5 +84,36 @@ describe('buildSystemPrompt', () => {
   test('escalation rules section present', () => {
     const p = buildSystemPrompt(baseCtx);
     expect(p).toContain('escalate_to_staff');
+  });
+
+  test('non-member: prompt mentions program name and "not enrolled"', () => {
+    const p = buildSystemPrompt(baseCtx);
+    expect(p).toContain('not enrolled in Buranchi Rewards');
+  });
+
+  test('member: loyalty block lists tier, balance, and rewards', () => {
+    const ctx: PromptContext = {
+      ...baseCtx,
+      loyalty: {
+        tier_name: 'Gold',
+        points_balance: 1847,
+        points_lifetime: 2500,
+        next_tier_name: 'Platinum',
+        to_next: 2500,
+        perks_text: 'Priority weekend booking',
+        available_rewards: [
+          { id: 'r1', name: 'Free dessert', points_cost: 200, type: 'free_item', type_value: 0 },
+          { id: 'r2', name: '10% off', points_cost: 500, type: 'percent_discount', type_value: 10 },
+        ],
+      },
+    };
+    const p = buildSystemPrompt(ctx);
+    expect(p).toContain('Gold member');
+    expect(p).toContain('1847 pts');
+    expect(p).toContain('2500 pts to Platinum');
+    expect(p).toContain('Free dessert');
+    expect(p).toContain('10% off');
+    expect(p).toContain('Priority weekend booking');
+    expect(p).toContain('DO NOT push redemptions');
   });
 });

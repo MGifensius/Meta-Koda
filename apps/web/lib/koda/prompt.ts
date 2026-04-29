@@ -10,6 +10,22 @@ export interface PromptCustomer {
   verified_notes: string[];
 }
 
+export interface PromptLoyalty {
+  tier_name: string;
+  points_balance: number;
+  points_lifetime: number;
+  next_tier_name: string | null;
+  to_next: number | null;
+  perks_text: string | null;
+  available_rewards: Array<{
+    id: string;
+    name: string;
+    points_cost: number;
+    type: 'free_item' | 'percent_discount' | 'rupiah_discount';
+    type_value: number;
+  }>;
+}
+
 export interface PromptContext {
   restaurant: {
     name: string;
@@ -26,6 +42,8 @@ export interface PromptContext {
     starts_on: string | null;
     ends_on: string | null;
   }>;
+  loyalty: PromptLoyalty | null;
+  programName: string;
 }
 
 function formatDate(date: Date, timezone: string): { dateLong: string; iso: string; time: string } {
@@ -67,6 +85,35 @@ function formatCustomer(c: PromptCustomer | null): string {
 function formatFaq(faq: PromptContext['faq']): string {
   if (faq.length === 0) return '- (no FAQ entries configured yet)';
   return faq.map((q, i) => `${i + 1}. Q: ${q.question}\n   A: ${q.answer}`).join('\n');
+}
+
+function formatLoyalty(l: PromptLoyalty | null, programName: string): string {
+  if (!l) {
+    return `# Loyalty\n- This customer is not enrolled in ${programName}. Don't bring up loyalty unless they ask.`;
+  }
+  const rewardsList = l.available_rewards.length
+    ? l.available_rewards
+        .slice()
+        .sort((a, b) => a.points_cost - b.points_cost)
+        .map((r) => {
+          const typeBit =
+            r.type === 'percent_discount'
+              ? `${r.type_value}% off`
+              : r.type === 'rupiah_discount'
+                ? `Rp ${r.type_value.toLocaleString()} off`
+                : 'free item';
+          return `  · ${r.name} — ${r.points_cost} pts · ${typeBit}`;
+        })
+        .join('\n')
+    : '  · (none available right now)';
+  const toNext =
+    l.next_tier_name && l.to_next != null ? ` · ${l.to_next} pts to ${l.next_tier_name}` : '';
+  return `# Loyalty (this customer)
+- Status: ${l.tier_name} member · ${l.points_balance} pts${toNext}
+- Eligible rewards now (cheapest first):
+${rewardsList}
+- Tier perks: ${l.perks_text ?? '(none configured)'}
+- DO NOT push redemptions; only mention if customer asks or it's clearly contextually helpful.`;
 }
 
 function formatSpecials(specials: PromptContext['specials']): string {
@@ -133,6 +180,8 @@ ${formatFaq(ctx.faq)}
 
 # Current specials
 ${formatSpecials(ctx.specials)}
+
+${formatLoyalty(ctx.loyalty, ctx.programName)}
 
 # When to escalate
 Call escalate_to_staff(reason) when:

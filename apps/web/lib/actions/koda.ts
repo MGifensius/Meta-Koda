@@ -115,10 +115,22 @@ export async function sendKodaMessageAction(input: unknown) {
   // Build prompt context
   const { data: orgData } = await supabase
     .from('organizations')
-    .select('name, timezone, address, operating_hours')
+    .select(
+      'name, timezone, address, operating_hours, loyalty_enabled, loyalty_program_name, loyalty_earn_rate_idr_per_point',
+    )
     .eq('id', convo.organization_id)
     .single();
-  const org = orgData as { name: string; timezone: string; address: string | null; operating_hours: unknown } | null;
+  const org = orgData as
+    | {
+        name: string;
+        timezone: string;
+        address: string | null;
+        operating_hours: unknown;
+        loyalty_enabled: boolean;
+        loyalty_program_name: string;
+        loyalty_earn_rate_idr_per_point: number;
+      }
+    | null;
 
   let customerCtx: PromptContext['customer'] = null;
   if (convo.customer_id) {
@@ -189,8 +201,10 @@ export async function sendKodaMessageAction(input: unknown) {
     },
     now: new Date(),
     customer: customerCtx,
-    faq: ((faqRows ?? []) as Array<{ question: string; answer: string }>),
+    faq: (faqRows ?? []) as Array<{ question: string; answer: string }>,
     specials: activeSpecials,
+    loyalty: null,
+    programName: org?.loyalty_program_name ?? 'Loyalty',
   };
 
   const hooks: ToolHooks = {

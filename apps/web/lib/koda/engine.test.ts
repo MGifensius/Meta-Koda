@@ -9,6 +9,8 @@ const promptCtx: PromptContext = {
   customer: null,
   faq: [],
   specials: [],
+  loyalty: null,
+  programName: 'Loyalty',
 };
 
 const toolCtx: ToolContext = {
