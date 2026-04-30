@@ -32,40 +32,37 @@ export function KodaSpecialsEditor({ entries }: { entries: SpecialEntry[] }) {
   }) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await createSpecialAction({ ...v, is_active: true });
-        setAdding(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await createSpecialAction({ ...v, is_active: true });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setAdding(false);
     });
   }
   function handleUpdate(id: string, v: Partial<SpecialEntry>) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await updateSpecialAction(id, {
-          ...(v.title !== undefined ? { title: v.title } : {}),
-          ...(v.description !== undefined ? { description: v.description ?? undefined } : {}),
-          ...(v.starts_on !== undefined ? { starts_on: v.starts_on ?? undefined } : {}),
-          ...(v.ends_on !== undefined ? { ends_on: v.ends_on ?? undefined } : {}),
-          ...(v.is_active !== undefined ? { is_active: v.is_active } : {}),
-        });
-        setEditingId(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateSpecialAction(id, {
+        ...(v.title !== undefined ? { title: v.title } : {}),
+        ...(v.description !== undefined ? { description: v.description ?? undefined } : {}),
+        ...(v.starts_on !== undefined ? { starts_on: v.starts_on ?? undefined } : {}),
+        ...(v.ends_on !== undefined ? { ends_on: v.ends_on ?? undefined } : {}),
+        ...(v.is_active !== undefined ? { is_active: v.is_active } : {}),
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setEditingId(null);
     });
   }
   function handleDelete(id: string) {
     if (!confirm('Delete this special?')) return;
     setError(undefined);
     startTransition(async () => {
-      try {
-        await deleteSpecialAction(id);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
-      }
+      const res = await deleteSpecialAction(id);
+      if (!res.ok) setError(res.message);
     });
   }
 

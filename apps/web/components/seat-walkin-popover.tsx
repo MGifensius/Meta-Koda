@@ -57,13 +57,13 @@ export function SeatWalkInPopover({
       ...(specialRequest ? { special_request: specialRequest } : {}),
     };
     startTransition(async () => {
-      try {
-        await createWalkInAction(input);
-        onClose();
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await createWalkInAction(input);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      onClose();
+      router.refresh();
     });
   }
 

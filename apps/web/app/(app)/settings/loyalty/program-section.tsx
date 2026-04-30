@@ -24,16 +24,16 @@ export function LoyaltyProgramSection({
   function save() {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await updateOrganizationLoyaltyAction({
-          loyalty_enabled: isEnabled,
-          loyalty_program_name: name.trim(),
-          loyalty_earn_rate_idr_per_point: rate,
-        });
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateOrganizationLoyaltyAction({
+        loyalty_enabled: isEnabled,
+        loyalty_program_name: name.trim(),
+        loyalty_earn_rate_idr_per_point: rate,
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
 

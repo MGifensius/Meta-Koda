@@ -65,16 +65,20 @@ export function BookingForm({ id, organizationId, defaults }: BookingFormProps) 
       ...(internalNotes ? { internal_notes: internalNotes } : {}),
     };
     startTransition(async () => {
-      try {
-        if (id) {
-          await updateBookingAction(id, input);
-          router.push(`/bookings/${id}`);
-        } else {
-          const res = await createBookingAction(input);
-          router.push(`/bookings/${res.id}`);
+      if (id) {
+        const res = await updateBookingAction(id, input);
+        if (!res.ok) {
+          setError(res.message);
+          return;
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed');
+        router.push(`/bookings/${id}`);
+      } else {
+        const res = await createBookingAction(input);
+        if (!res.ok) {
+          setError(res.message);
+          return;
+        }
+        router.push(`/bookings/${res.data.id}`);
       }
     });
   }

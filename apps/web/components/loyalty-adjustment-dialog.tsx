@@ -35,18 +35,18 @@ export function LoyaltyAdjustmentDialog({ customerId, open, onClose }: LoyaltyAd
     }
     setError(undefined);
     startTransition(async () => {
-      try {
-        await adjustPointsAction({
-          customer_id: customerId,
-          delta_points: delta,
-          reason: reason.trim(),
-          affects_lifetime: affectsLifetime,
-        });
-        onClose();
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await adjustPointsAction({
+        customer_id: customerId,
+        delta_points: delta,
+        reason: reason.trim(),
+        affects_lifetime: affectsLifetime,
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      onClose();
+      router.refresh();
     });
   }
 

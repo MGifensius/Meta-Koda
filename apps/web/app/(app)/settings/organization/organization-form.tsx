@@ -28,12 +28,12 @@ export function OrganizationForm({ defaults }: { defaults: OrganizationUpdate })
     setError(undefined);
     setSaved(false);
     startTransition(async () => {
-      try {
-        await updateOrganizationAction(values);
-        setSaved(true);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateOrganizationAction(values);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setSaved(true);
     });
   });
 

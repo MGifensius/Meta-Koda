@@ -57,8 +57,9 @@ export function KodaSimulatorChat({ organizationId }: KodaSimulatorChatProps) {
       ...(customer.customer_id ? { customer_id: customer.customer_id } : {}),
       channel: 'simulator',
     });
-    setConversationId(res.conversation_id);
-    return res.conversation_id;
+    if (!res.ok) throw new Error(res.message);
+    setConversationId(res.data.conversation_id);
+    return res.data.conversation_id;
   }
 
   function reset() {
@@ -81,10 +82,18 @@ export function KodaSimulatorChat({ organizationId }: KodaSimulatorChatProps) {
       try {
         const cid = await ensureConversation();
         const res = await sendKodaMessageAction({ conversation_id: cid, content: text });
-        if (res.assistantMessage) {
+        if (!res.ok) {
+          setError(res.message);
+          return;
+        }
+        if (res.data.assistantMessage) {
           setMessages((prev) => [
             ...prev,
-            { role: 'assistant', content: res.assistantMessage, created_at: new Date().toISOString() },
+            {
+              role: 'assistant',
+              content: res.data.assistantMessage,
+              created_at: new Date().toISOString(),
+            },
           ]);
         }
       } catch (e) {

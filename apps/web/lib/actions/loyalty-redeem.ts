@@ -10,6 +10,7 @@ import { requireRole } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { ActionError } from '@/lib/auth/errors';
 import { deriveTier, type Tier } from '@/lib/loyalty/tier';
+import { errorToResult, type ActionResult } from '@/lib/actions/result';
 
 interface CustomerRow {
   id: string;
@@ -20,7 +21,8 @@ interface CustomerRow {
   current_tier_id: string | null;
 }
 
-export async function redeemRewardAction(input: unknown) {
+export async function redeemRewardAction(input: unknown): Promise<ActionResult<null>> {
+  try {
   const profile = await requireRole(['admin', 'front_desk']);
   const parsed = RedeemRewardSchema.parse(input);
   const supabase = await createServerClient();
@@ -100,10 +102,14 @@ export async function redeemRewardAction(input: unknown) {
 
   revalidatePath(`/bookings/${parsed.booking_id}`);
   revalidatePath(`/customers/${cust.id}`);
-  return { ok: true as const };
+  return { ok: true, data: null };
+  } catch (err) {
+    return errorToResult(err);
+  }
 }
 
-export async function voidRedemptionAction(input: unknown) {
+export async function voidRedemptionAction(input: unknown): Promise<ActionResult<null>> {
+  try {
   const profile = await requireRole(['admin', 'front_desk']);
   const parsed = VoidRedemptionSchema.parse(input);
   const supabase = await createServerClient();
@@ -143,10 +149,14 @@ export async function voidRedemptionAction(input: unknown) {
     .eq('id', r.customer_id);
 
   revalidatePath(`/customers/${r.customer_id}`);
-  return { ok: true as const };
+  return { ok: true, data: null };
+  } catch (err) {
+    return errorToResult(err);
+  }
 }
 
-export async function adjustPointsAction(input: unknown) {
+export async function adjustPointsAction(input: unknown): Promise<ActionResult<null>> {
+  try {
   const profile = await requireRole(['admin']);
   const parsed = AdjustPointsSchema.parse(input);
   const supabase = await createServerClient();
@@ -197,5 +207,8 @@ export async function adjustPointsAction(input: unknown) {
   if (updErr) throw new ActionError(updErr.code ?? 'DB', updErr.message);
 
   revalidatePath(`/customers/${c.id}`);
-  return { ok: true as const };
+  return { ok: true, data: null };
+  } catch (err) {
+    return errorToResult(err);
+  }
 }

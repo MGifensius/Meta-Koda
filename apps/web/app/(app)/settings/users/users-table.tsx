@@ -22,9 +22,8 @@ export function UsersTable({ rows }: { rows: UserRow[] }) {
     setError(undefined);
     setPendingId(id);
     try {
-      await updateUserRoleAction({ id, role });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateUserRoleAction({ id, role });
+      if (!res.ok) setError(res.message);
     } finally {
       setPendingId(null);
     }
@@ -34,9 +33,11 @@ export function UsersTable({ rows }: { rows: UserRow[] }) {
     setError(undefined);
     setPendingId(id);
     try {
-      await setUserStatusAction({ id, status: current === 'active' ? 'suspended' : 'active' });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      const res = await setUserStatusAction({
+        id,
+        status: current === 'active' ? 'suspended' : 'active',
+      });
+      if (!res.ok) setError(res.message);
     } finally {
       setPendingId(null);
     }

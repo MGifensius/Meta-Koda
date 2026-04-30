@@ -56,7 +56,11 @@ export function OrgLogoUpload({
         .createSignedUrl(newPath, SIGNED_URL_TTL_SECONDS);
       if (signedErr) throw signedErr;
 
-      await updateOrgLogoAction(newPath);
+      const res = await updateOrgLogoAction(newPath);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
       setPath(newPath);
       setSignedUrl(signed?.signedUrl ?? null);
     } catch (err) {
@@ -70,11 +74,13 @@ export function OrgLogoUpload({
     setError(undefined);
     setPending('remove');
     try {
-      await updateOrgLogoAction(null);
+      const res = await updateOrgLogoAction(null);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
       setPath(null);
       setSignedUrl(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Remove failed.');
     } finally {
       setPending(null);
     }

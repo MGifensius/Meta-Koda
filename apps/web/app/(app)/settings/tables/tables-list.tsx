@@ -27,13 +27,13 @@ export function TablesList({ rows }: { rows: TableRow[] }) {
     setError(undefined);
     setPendingId(id);
     try {
-      await deleteTableAction(id);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed';
-      setError(msg);
-      if (msg.includes('TABLE_HAS_BOOKINGS')) {
+      const res = await deleteTableAction(id);
+      if (res.ok) return;
+      setError(res.message);
+      if (res.code === 'TABLE_HAS_BOOKINGS') {
         if (confirm('This table has historical bookings. Set inactive instead?')) {
-          await updateTableAction(id, { is_active: false });
+          const upd = await updateTableAction(id, { is_active: false });
+          if (!upd.ok) setError(upd.message);
         }
       }
     } finally {

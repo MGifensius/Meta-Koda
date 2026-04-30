@@ -20,11 +20,9 @@ export function CustomerEditForm({ id, defaults }: { id: string; defaults: Custo
   const onSubmit = form.handleSubmit((values) => {
     setGlobalError(undefined);
     startTransition(async () => {
-      try {
-        await updateCustomerAction(id, values);
-      } catch (err) {
-        setGlobalError(err instanceof Error ? err.message : 'Something went wrong.');
-      }
+      const res = await updateCustomerAction(id, values);
+      // Successful path redirects via Next.js — only the error branch returns here.
+      if (!res.ok) setGlobalError(res.message);
     });
   });
 

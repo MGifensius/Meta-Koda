@@ -24,34 +24,28 @@ export function CustomerNotesReviewList({ notes }: { notes: PendingNote[] }) {
   function verify(id: string) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await verifyNoteAction(id);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
-      }
+      const res = await verifyNoteAction(id);
+      if (!res.ok) setError(res.message);
     });
   }
   function saveEdit(id: string) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await updateNoteAction(id, { note: draft });
-        setEditingId(null);
-        setDraft('');
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateNoteAction(id, { note: draft });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setEditingId(null);
+      setDraft('');
     });
   }
   function remove(id: string) {
     if (!confirm('Delete this note?')) return;
     setError(undefined);
     startTransition(async () => {
-      try {
-        await deleteNoteAction(id);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
-      }
+      const res = await deleteNoteAction(id);
+      if (!res.ok) setError(res.message);
     });
   }
 

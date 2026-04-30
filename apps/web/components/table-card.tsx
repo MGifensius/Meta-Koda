@@ -47,10 +47,12 @@ export function TableCard({
     setError(undefined);
     setPending(true);
     try {
-      await setTableStatusAction(table.id, next);
+      const res = await setTableStatusAction(table.id, next);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
       router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
     } finally {
       setPending(false);
     }
@@ -60,10 +62,12 @@ export function TableCard({
     setError(undefined);
     setPending(true);
     try {
-      await transitionBookingAction(bookingId, { next });
+      const res = await transitionBookingAction(bookingId, { next });
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
       router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
     } finally {
       setPending(false);
     }

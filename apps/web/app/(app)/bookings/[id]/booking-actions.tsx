@@ -27,13 +27,13 @@ export function BookingActions({
       reason = r ?? undefined;
     }
     startTransition(async () => {
-      try {
-        const input = reason ? { next, reason } : { next };
-        await transitionBookingAction(id, input);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const input = reason ? { next, reason } : { next };
+      const res = await transitionBookingAction(id, input);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
 

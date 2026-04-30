@@ -22,34 +22,38 @@ export function KodaFaqEditor({ entries }: { entries: FaqEntry[] }) {
   function handleAdd(values: { question: string; answer: string }) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await createFaqAction({ ...values, is_active: true, sort_order: entries.length });
-        setAdding(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await createFaqAction({
+        ...values,
+        is_active: true,
+        sort_order: entries.length,
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setAdding(false);
     });
   }
-  function handleUpdate(id: string, values: { question: string; answer: string; is_active: boolean }) {
+  function handleUpdate(
+    id: string,
+    values: { question: string; answer: string; is_active: boolean },
+  ) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await updateFaqAction(id, values);
-        setEditingId(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateFaqAction(id, values);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setEditingId(null);
     });
   }
   function handleDelete(id: string) {
     if (!confirm('Delete this FAQ entry?')) return;
     setError(undefined);
     startTransition(async () => {
-      try {
-        await deleteFaqAction(id);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
-      }
+      const res = await deleteFaqAction(id);
+      if (!res.ok) setError(res.message);
     });
   }
 

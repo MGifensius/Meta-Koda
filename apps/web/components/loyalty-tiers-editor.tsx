@@ -24,16 +24,16 @@ export function LoyaltyTiersEditor({ rows }: { rows: TierRow[] }) {
   ) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await updateTierAction(tierId, {
-          name: values.name,
-          min_points_lifetime: values.min_points_lifetime,
-          perks_text: values.perks_text || null,
-        });
-        setEditingId(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateTierAction(tierId, {
+        name: values.name,
+        min_points_lifetime: values.min_points_lifetime,
+        perks_text: values.perks_text || null,
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setEditingId(null);
     });
   }
 

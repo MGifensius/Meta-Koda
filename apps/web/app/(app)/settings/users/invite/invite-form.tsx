@@ -6,12 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Copy, Check } from 'lucide-react';
 import { Button, Input, FormField, Card } from '@buranchi/ui';
 import { InviteUserSchema, type InviteUser, ROLE_LABELS, USER_ROLES } from '@buranchi/shared';
-import { inviteUserAction, type InviteResult } from './actions';
+import { inviteUserAction, type InvitePayload } from './actions';
 
 export function InviteForm() {
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | undefined>();
-  const [result, setResult] = React.useState<InviteResult | null>(null);
+  const [result, setResult] = React.useState<InvitePayload | null>(null);
   const [copied, setCopied] = React.useState(false);
 
   const form = useForm<InviteUser>({
@@ -24,12 +24,12 @@ export function InviteForm() {
     setResult(null);
     setCopied(false);
     startTransition(async () => {
-      try {
-        const res = await inviteUserAction(values);
-        setResult(res);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await inviteUserAction(values);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setResult(res.data);
     });
   });
 

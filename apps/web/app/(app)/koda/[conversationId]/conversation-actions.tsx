@@ -31,34 +31,34 @@ export function ConversationActions({
   function takeOver() {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await takeOverAction(conversationId);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await takeOverAction(conversationId);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
   function handBack() {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await handBackToKodaAction(conversationId);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await handBackToKodaAction(conversationId);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
   function resolve() {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await resolveConversationAction(conversationId);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await resolveConversationAction(conversationId);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
   function sendReply() {
@@ -67,12 +67,12 @@ export function ConversationActions({
     const text = reply;
     setReply('');
     startTransition(async () => {
-      try {
-        await sendStaffReplyAction(conversationId, text);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await sendStaffReplyAction(conversationId, text);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
 

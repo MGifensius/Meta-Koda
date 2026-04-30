@@ -42,24 +42,24 @@ export function LoyaltyRewardsEditor({
   function add(values: Omit<RewardRow, 'id'>) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await createRewardAction(values);
-        setAdding(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await createRewardAction(values);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setAdding(false);
     });
   }
 
   function update(id: string, values: Partial<Omit<RewardRow, 'id'>>) {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await updateRewardAction(id, values);
-        setEditingId(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await updateRewardAction(id, values);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setEditingId(null);
     });
   }
 
@@ -67,11 +67,8 @@ export function LoyaltyRewardsEditor({
     if (!confirm('Delete this reward? Past redemptions stay (snapshotted).')) return;
     setError(undefined);
     startTransition(async () => {
-      try {
-        await deleteRewardAction(id);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
-      }
+      const res = await deleteRewardAction(id);
+      if (!res.ok) setError(res.message);
     });
   }
 

@@ -38,18 +38,14 @@ export function TableForm({ id, defaults, onSuccess }: TableFormProps) {
     setError(undefined);
     setSaved(false);
     startTransition(async () => {
-      try {
-        if (id) {
-          await updateTableAction(id, values);
-        } else {
-          await createTableAction(values);
-        }
-        setSaved(true);
-        if (!id) form.reset({ code: '', capacity: 2, is_active: true });
-        onSuccess?.();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = id ? await updateTableAction(id, values) : await createTableAction(values);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setSaved(true);
+      if (!id) form.reset({ code: '', capacity: 2, is_active: true });
+      onSuccess?.();
     });
   });
 

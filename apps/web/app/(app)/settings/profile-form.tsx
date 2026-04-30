@@ -27,12 +27,12 @@ export function ProfileForm({ defaults }: { defaults: ProfileSelfUpdate }) {
     setError(undefined);
     setSaved(false);
     startTransition(async () => {
-      try {
-        await updateOwnProfileAction(values);
-        setSaved(true);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to save');
+      const res = await updateOwnProfileAction(values);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      setSaved(true);
     });
   });
 

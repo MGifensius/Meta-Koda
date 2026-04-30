@@ -58,7 +58,11 @@ export function AvatarUpload({
         .createSignedUrl(newPath, SIGNED_URL_TTL_SECONDS);
       if (signedErr) throw signedErr;
 
-      await updateAvatarAction(newPath);
+      const res = await updateAvatarAction(newPath);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
       setPath(newPath);
       setSignedUrl(signed?.signedUrl ?? null);
     } catch (err) {
@@ -72,11 +76,13 @@ export function AvatarUpload({
     setError(undefined);
     setPending('remove');
     try {
-      await updateAvatarAction(null);
+      const res = await updateAvatarAction(null);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
       setPath(null);
       setSignedUrl(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Remove failed.');
     } finally {
       setPending(null);
     }

@@ -93,15 +93,15 @@ export function LoyaltyCompletionSection({
     }
     setError(undefined);
     startTransition(async () => {
-      try {
-        await completeBookingAction(bookingId, {
-          bill_idr: billIdr,
-          reward_redemption_ids: Array.from(picked),
-        });
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await completeBookingAction(bookingId, {
+        bill_idr: billIdr,
+        reward_redemption_ids: Array.from(picked),
+      });
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
 

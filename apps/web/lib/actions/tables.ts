@@ -15,84 +15,110 @@ import {
 import { requireRole } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { ActionError } from '@/lib/auth/errors';
+import { errorToResult, type ActionResult } from '@/lib/actions/result';
 
-export async function createTableAction(input: unknown) {
-  const profile = await requireRole(['admin']);
-  const parsed = TableCreateSchema.parse(input) as TableCreate;
-  const supabase = await createServerClient();
-  const { data, error } = await supabase
-    .from('tables')
-    .insert({
-      organization_id: profile.organization_id,
-      code: parsed.code,
-      capacity: parsed.capacity,
-      floor_area: parsed.floor_area ?? null,
-      is_active: parsed.is_active,
-    } as never)
-    .select('id')
-    .single();
-  if (error) {
-    if (error.code === '23505' && error.message.toLowerCase().includes('code')) {
-      throw new ActionError('CODE_TAKEN', 'A table with this code already exists.');
+export async function createTableAction(input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const profile = await requireRole(['admin']);
+    const parsed = TableCreateSchema.parse(input) as TableCreate;
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+      .from('tables')
+      .insert({
+        organization_id: profile.organization_id,
+        code: parsed.code,
+        capacity: parsed.capacity,
+        floor_area: parsed.floor_area ?? null,
+        is_active: parsed.is_active,
+      } as never)
+      .select('id')
+      .single();
+    if (error) {
+      if (error.code === '23505' && error.message.toLowerCase().includes('code')) {
+        throw new ActionError('CODE_TAKEN', 'A table with this code already exists.');
+      }
+      throw new ActionError(error.code ?? 'DB', error.message);
     }
-    throw new ActionError(error.code ?? 'DB', error.message);
+    revalidatePath('/settings/tables');
+    revalidatePath('/floor');
+    const inserted = data as { id: string } | null;
+    return { ok: true, data: { id: inserted!.id } };
+  } catch (err) {
+    return errorToResult(err);
   }
-  revalidatePath('/settings/tables');
-  revalidatePath('/floor');
-  const inserted = data as { id: string } | null;
-  return { ok: true as const, id: inserted!.id };
 }
 
-export async function updateTableAction(id: string, input: unknown) {
-  await requireRole(['admin']);
-  const parsed = TableUpdateSchema.parse(input) as TableUpdate;
-  const supabase = await createServerClient();
-  const update: Record<string, unknown> = {};
-  if (parsed.code !== undefined) update.code = parsed.code;
-  if (parsed.capacity !== undefined) update.capacity = parsed.capacity;
-  if (parsed.floor_area !== undefined) update.floor_area = parsed.floor_area ?? null;
-  if (parsed.is_active !== undefined) update.is_active = parsed.is_active;
-  const { error } = await supabase.from('tables').update(update as never).eq('id', id);
-  if (error) {
-    if (error.code === '23505') {
-      throw new ActionError('CODE_TAKEN', 'A table with this code already exists.');
+export async function updateTableAction(
+  id: string,
+  input: unknown,
+): Promise<ActionResult<null>> {
+  try {
+    await requireRole(['admin']);
+    const parsed = TableUpdateSchema.parse(input) as TableUpdate;
+    const supabase = await createServerClient();
+    const update: Record<string, unknown> = {};
+    if (parsed.code !== undefined) update.code = parsed.code;
+    if (parsed.capacity !== undefined) update.capacity = parsed.capacity;
+    if (parsed.floor_area !== undefined) update.floor_area = parsed.floor_area ?? null;
+    if (parsed.is_active !== undefined) update.is_active = parsed.is_active;
+    const { error } = await supabase.from('tables').update(update as never).eq('id', id);
+    if (error) {
+      if (error.code === '23505') {
+        throw new ActionError('CODE_TAKEN', 'A table with this code already exists.');
+      }
+      throw new ActionError(error.code ?? 'DB', error.message);
     }
-    throw new ActionError(error.code ?? 'DB', error.message);
+    revalidatePath('/settings/tables');
+    revalidatePath('/floor');
+    return { ok: true, data: null };
+  } catch (err) {
+    return errorToResult(err);
   }
-  revalidatePath('/settings/tables');
-  revalidatePath('/floor');
 }
 
-export async function setTableStatusAction(id: string, next: unknown) {
-  await requireRole(['admin', 'front_desk']);
-  const status = TableStatusSchema.parse(next) as TableStatus;
-  if (!isManualTableStatus(status)) {
-    throw new ActionError(
-      'INVALID_TABLE_STATUS',
-      'Only available, cleaning, and unavailable can be set manually.',
-    );
-  }
-  const supabase = await createServerClient();
-  const { error } = await supabase.from('tables').update({ status } as never).eq('id', id);
-  if (error) throw new ActionError(error.code ?? 'DB', error.message);
-  revalidatePath('/floor');
-}
-
-export async function deleteTableAction(id: string) {
-  await requireRole(['admin']);
-  const supabase = await createServerClient();
-  const { error } = await supabase.from('tables').delete().eq('id', id);
-  if (error) {
-    if (error.code === '23503') {
+export async function setTableStatusAction(
+  id: string,
+  next: unknown,
+): Promise<ActionResult<null>> {
+  try {
+    await requireRole(['admin', 'front_desk']);
+    const status = TableStatusSchema.parse(next) as TableStatus;
+    if (!isManualTableStatus(status)) {
       throw new ActionError(
-        'TABLE_HAS_BOOKINGS',
-        'Tables with bookings cannot be deleted. Set inactive instead.',
+        'INVALID_TABLE_STATUS',
+        'Only available, cleaning, and unavailable can be set manually.',
       );
     }
-    throw new ActionError(error.code ?? 'DB', error.message);
+    const supabase = await createServerClient();
+    const { error } = await supabase.from('tables').update({ status } as never).eq('id', id);
+    if (error) throw new ActionError(error.code ?? 'DB', error.message);
+    revalidatePath('/floor');
+    return { ok: true, data: null };
+  } catch (err) {
+    return errorToResult(err);
   }
-  revalidatePath('/settings/tables');
-  revalidatePath('/floor');
+}
+
+export async function deleteTableAction(id: string): Promise<ActionResult<null>> {
+  try {
+    await requireRole(['admin']);
+    const supabase = await createServerClient();
+    const { error } = await supabase.from('tables').delete().eq('id', id);
+    if (error) {
+      if (error.code === '23503') {
+        throw new ActionError(
+          'TABLE_HAS_BOOKINGS',
+          'Tables with bookings cannot be deleted. Set inactive instead.',
+        );
+      }
+      throw new ActionError(error.code ?? 'DB', error.message);
+    }
+    revalidatePath('/settings/tables');
+    revalidatePath('/floor');
+    return { ok: true, data: null };
+  } catch (err) {
+    return errorToResult(err);
+  }
 }
 
 export interface AvailableTable {
@@ -102,6 +128,8 @@ export interface AvailableTable {
   floor_area: string | null;
 }
 
+// Internal helper used by Koda's check_availability tool. Not a form action;
+// thrown errors here are fine because it's only called server-to-server.
 export async function getAvailableTablesForSlot(
   startsAt: Date,
   partySize: number,

@@ -26,25 +26,31 @@ export function LoyaltyMemberToggle({
   function enroll() {
     setError(undefined);
     startTransition(async () => {
-      try {
-        await enrollMemberAction(customerId);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await enrollMemberAction(customerId);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
 
   function unenroll() {
-    if (!confirm(`Remove ${customerName} from ${programName}? Their points stay; tier resets to none.`)) return;
+    if (
+      !confirm(
+        `Remove ${customerName} from ${programName}? Their points stay; tier resets to none.`,
+      )
+    ) {
+      return;
+    }
     setError(undefined);
     startTransition(async () => {
-      try {
-        await unenrollMemberAction(customerId);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed');
+      const res = await unenrollMemberAction(customerId);
+      if (!res.ok) {
+        setError(res.message);
+        return;
       }
+      router.refresh();
     });
   }
 
