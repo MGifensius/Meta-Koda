@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Topbar, Button, Card, Badge } from '@buranchi/ui';
+import { formatPhoneDisplay } from '@buranchi/shared';
 import { requireProfile } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { DeleteCustomerButton } from './delete-action';
@@ -128,7 +129,10 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
         <Card className="space-y-3">
           <Row label="Display ID" value={<span className="font-mono">{c.display_id}</span>} />
-          <Row label="Phone" value={c.phone ?? <span className="text-border">—</span>} />
+          <Row
+            label="Phone"
+            value={c.phone ? formatPhoneDisplay(c.phone) : <span className="text-border">—</span>}
+          />
           <Row label="Email" value={c.email ?? <span className="text-border">—</span>} />
           <Row label="Birth date" value={c.birth_date ?? <span className="text-border">—</span>} />
           <Row

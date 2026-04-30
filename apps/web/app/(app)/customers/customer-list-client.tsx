@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input, Badge, DataTable, Button } from '@buranchi/ui';
+import { formatPhoneDisplay } from '@buranchi/shared';
 
 export interface CustomerRow {
   id: string;
@@ -42,7 +43,7 @@ const baseColumns: ColumnDef<CustomerRow>[] = [
     accessorKey: 'phone',
     cell: ({ getValue }) => {
       const v = getValue<string | null>();
-      return v ? <span>{v}</span> : <span className="text-border">—</span>;
+      return v ? <span>{formatPhoneDisplay(v)}</span> : <span className="text-border">—</span>;
     },
   },
   {

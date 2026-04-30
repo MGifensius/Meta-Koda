@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { MessageCircle, Megaphone, UserPlus, Search, Settings, ArrowRight } from 'lucide-react';
 import { Topbar, StatCardTrend, Card, Button } from '@buranchi/ui';
+import { formatPhoneDisplay } from '@buranchi/shared';
 import { requireProfile } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
 
@@ -119,7 +120,7 @@ export default async function DashboardPage() {
                   <span className="font-mono text-muted text-[12px]">{c.display_id}</span>
                   <span className="font-medium text-fg truncate">{c.full_name}</span>
                   <span className="text-muted text-[12px]">
-                    {c.phone ?? <span className="text-border">—</span>}
+                    {c.phone ? formatPhoneDisplay(c.phone) : <span className="text-border">—</span>}
                   </span>
                   <span className="text-muted text-[12px] text-right">
                     {new Date(c.created_at).toLocaleDateString()}

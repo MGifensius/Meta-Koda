@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import { cn } from '@buranchi/ui';
+import { formatPhoneDisplay } from '@buranchi/shared';
 import { createClient } from '@/lib/supabase/browser';
 
 export interface CustomerPickerValue {
@@ -68,7 +69,9 @@ export function CustomerPicker({ value, onChange, organizationId }: CustomerPick
 
   function selectExisting(c: CustomerSuggestion) {
     onChange({ customer_id: c.id });
-    setPickedLabel(`${c.display_id} · ${c.full_name}${c.phone ? ' · ' + c.phone : ''}`);
+    setPickedLabel(
+      `${c.display_id} · ${c.full_name}${c.phone ? ' · ' + formatPhoneDisplay(c.phone) : ''}`,
+    );
     setOpen(false);
     setQuery('');
   }
@@ -149,7 +152,7 @@ export function CustomerPicker({ value, onChange, organizationId }: CustomerPick
               <p className="text-[12px] text-fg font-medium">{c.full_name}</p>
               <p className="text-[11px] text-muted font-mono">
                 {c.display_id}
-                {c.phone ? ` · ${c.phone}` : ''}
+                {c.phone ? ` · ${formatPhoneDisplay(c.phone)}` : ''}
               </p>
             </button>
           ))}

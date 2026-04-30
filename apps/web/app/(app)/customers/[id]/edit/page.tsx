@@ -3,7 +3,7 @@ import { Topbar } from '@buranchi/ui';
 import { requireRole } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { CustomerEditForm } from './customer-edit-form';
-import type { CustomerInput } from '@buranchi/shared';
+import { formatPhoneDisplay, type CustomerInput } from '@buranchi/shared';
 
 export default async function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
   await requireRole(['admin', 'front_desk', 'customer_service']);
@@ -24,7 +24,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
 
   const defaults: CustomerInput = {
     full_name: c.full_name,
-    phone: c.phone ?? undefined,
+    phone: c.phone ? formatPhoneDisplay(c.phone) : undefined,
     email: c.email ?? undefined,
     birth_date: c.birth_date ?? undefined,
     notes: c.notes ?? undefined,

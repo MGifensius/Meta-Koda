@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Topbar, Card } from '@buranchi/ui';
+import { formatPhoneDisplay } from '@buranchi/shared';
 import { requireRole } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { KodaTranscript } from '@/components/koda-transcript';
@@ -130,7 +131,9 @@ export default async function KodaConversationPage({
                 Customer
               </h3>
               <p className="text-[12px] text-fg">{convo.customer.full_name}</p>
-              <p className="text-[11px] text-muted">{convo.customer.phone ?? '—'}</p>
+              <p className="text-[11px] text-muted">
+                {convo.customer.phone ? formatPhoneDisplay(convo.customer.phone) : '—'}
+              </p>
               <Link
                 href={`/customers/${convo.customer.id}`}
                 className="text-[11px] text-accent hover:underline mt-2 inline-block"

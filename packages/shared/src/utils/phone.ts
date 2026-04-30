@@ -26,3 +26,25 @@ export function isValidE164(value: string): boolean {
   if (!value || !value.startsWith('+')) return false;
   return isValidPhoneNumber(value);
 }
+
+/**
+ * Format a stored phone number for human display: `(countryCode) nationalNumber`,
+ * e.g. `+6281211000001` → `(62) 81211000001`.
+ *
+ * Accepts E.164 ideally; falls back to ID-as-default parsing for legacy data
+ * stored with dashes/spaces. Returns empty string for null/undefined. If
+ * parsing fails entirely, returns the input verbatim so the user still sees
+ * something rather than a blank cell.
+ */
+export function formatPhoneDisplay(value: string | null | undefined): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (trimmed === '') return '';
+  try {
+    const parsed = parsePhoneNumberWithError(trimmed, DEFAULT_COUNTRY);
+    if (!parsed.isValid()) return trimmed;
+    return `(${parsed.countryCallingCode}) ${parsed.nationalNumber}`;
+  } catch {
+    return trimmed;
+  }
+}
