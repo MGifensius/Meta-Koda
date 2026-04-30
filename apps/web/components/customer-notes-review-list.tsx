@@ -20,10 +20,18 @@ export function CustomerNotesReviewList({ notes }: { notes: PendingNote[] }) {
   const [draft, setDraft] = React.useState('');
   const [pending, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | undefined>();
+  // Optimistically hide rows that have been verified/deleted; reconcile when
+  // the server-rendered list comes back via revalidatePath.
+  const [optimisticHiddenIds, hideId] = React.useOptimistic<Set<string>, string>(
+    new Set<string>(),
+    (prev, id) => new Set(prev).add(id),
+  );
+  const visibleNotes = notes.filter((n) => !optimisticHiddenIds.has(n.id));
 
   function verify(id: string) {
     setError(undefined);
     startTransition(async () => {
+      hideId(id);
       const res = await verifyNoteAction(id);
       if (!res.ok) setError(res.message);
     });
@@ -31,6 +39,7 @@ export function CustomerNotesReviewList({ notes }: { notes: PendingNote[] }) {
   function saveEdit(id: string) {
     setError(undefined);
     startTransition(async () => {
+      hideId(id);
       const res = await updateNoteAction(id, { note: draft });
       if (!res.ok) {
         setError(res.message);
@@ -44,12 +53,13 @@ export function CustomerNotesReviewList({ notes }: { notes: PendingNote[] }) {
     if (!confirm('Delete this note?')) return;
     setError(undefined);
     startTransition(async () => {
+      hideId(id);
       const res = await deleteNoteAction(id);
       if (!res.ok) setError(res.message);
     });
   }
 
-  if (notes.length === 0) {
+  if (visibleNotes.length === 0) {
     return (
       <div className="rounded-card bg-surface shadow-card py-12 text-center">
         <p className="text-body-strong text-fg">All caught up</p>
@@ -62,7 +72,7 @@ export function CustomerNotesReviewList({ notes }: { notes: PendingNote[] }) {
     <div className="space-y-3">
       {error ? <p className="text-[12px] text-danger">{error}</p> : null}
       <div className="rounded-card bg-surface shadow-card overflow-hidden">
-        {notes.map((n) => (
+        {visibleNotes.map((n) => (
           <div
             key={n.id}
             className="border-b border-row-divider last:border-b-0 px-4 py-3 flex items-start gap-3"

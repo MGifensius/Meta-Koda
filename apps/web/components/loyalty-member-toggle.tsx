@@ -20,12 +20,15 @@ export function LoyaltyMemberToggle({
   programName,
 }: LoyaltyMemberToggleProps) {
   const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
+  const [, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | undefined>();
+  const [optimisticIsMember, setOptimisticIsMember] = React.useOptimistic<boolean>(isMember);
+  const pending = optimisticIsMember !== isMember;
 
   function enroll() {
     setError(undefined);
     startTransition(async () => {
+      setOptimisticIsMember(true);
       const res = await enrollMemberAction(customerId);
       if (!res.ok) {
         setError(res.message);
@@ -45,6 +48,7 @@ export function LoyaltyMemberToggle({
     }
     setError(undefined);
     startTransition(async () => {
+      setOptimisticIsMember(false);
       const res = await unenrollMemberAction(customerId);
       if (!res.ok) {
         setError(res.message);
@@ -54,7 +58,7 @@ export function LoyaltyMemberToggle({
     });
   }
 
-  if (!isMember) {
+  if (!optimisticIsMember) {
     return (
       <Card className="flex items-center gap-3">
         <div className="h-9 w-9 rounded-pill bg-canvas flex items-center justify-center text-muted">

@@ -40,44 +40,51 @@ export function TableCard({
 }) {
   const router = useRouter();
   const [walkInOpen, setWalkInOpen] = React.useState(false);
-  const [pending, setPending] = React.useState(false);
+  const [, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | undefined>();
+  // useOptimistic snaps the pill to the new status immediately; when the server
+  // action resolves and revalidatePath('/floor') re-renders the parent, the
+  // optimistic value reconciles with the server-provided prop.
+  const [optimisticStatus, setOptimisticStatus] = React.useOptimistic<TableStatus>(table.liveStatus);
+  const liveStatus = optimisticStatus;
+  const pending = optimisticStatus !== table.liveStatus;
 
-  async function setStatus(next: 'available' | 'cleaning' | 'unavailable') {
+  function setStatus(next: 'available' | 'cleaning' | 'unavailable') {
     setError(undefined);
-    setPending(true);
-    try {
+    startTransition(async () => {
+      setOptimisticStatus(next);
       const res = await setTableStatusAction(table.id, next);
       if (!res.ok) {
         setError(res.message);
         return;
       }
       router.refresh();
-    } finally {
-      setPending(false);
-    }
+    });
   }
 
-  async function transitionBooking(bookingId: string, next: 'seated' | 'completed') {
+  function transitionBooking(bookingId: string, next: 'seated' | 'completed') {
     setError(undefined);
-    setPending(true);
-    try {
+    startTransition(async () => {
+      // For booking transitions, predict the table-status change so the pill
+      // flips instantly: confirmed→seated makes the table 'occupied', and
+      // seated→completed frees it (we optimistically show 'available' — the
+      // server may reconcile to 'reserved' if another booking is upcoming).
+      if (next === 'seated') setOptimisticStatus('occupied');
+      if (next === 'completed') setOptimisticStatus('available');
       const res = await transitionBookingAction(bookingId, { next });
       if (!res.ok) {
         setError(res.message);
         return;
       }
       router.refresh();
-    } finally {
-      setPending(false);
-    }
+    });
   }
 
   return (
     <div
       className={cn(
         'relative rounded-card bg-surface p-card-pad shadow-card flex flex-col gap-3',
-        table.liveStatus === 'unavailable' && 'opacity-70',
+        liveStatus === 'unavailable' && 'opacity-70',
       )}
     >
       <div className="flex items-start justify-between">
@@ -88,16 +95,16 @@ export function TableCard({
             {table.floor_area ? <> · {table.floor_area}</> : null}
           </p>
         </div>
-        <TableStatusPill status={table.liveStatus} />
+        <TableStatusPill status={liveStatus} />
       </div>
 
       <div className="text-[12px] text-fg min-h-[40px]">
-        <CardBody table={table} />
+        <CardBody table={table} liveStatus={liveStatus} />
       </div>
 
       {canMutate ? (
         <div className="flex flex-wrap gap-1.5">
-          {table.liveStatus === 'available' ? (
+          {liveStatus === 'available' ? (
             <>
               <Button size="sm" onClick={() => setWalkInOpen(true)}>
                 <UserPlus className="h-3 w-3" /> Seat walk-in
@@ -112,7 +119,7 @@ export function TableCard({
               </Button>
             </>
           ) : null}
-          {table.liveStatus === 'reserved' && table.primaryBooking ? (
+          {liveStatus === 'reserved' && table.primaryBooking ? (
             <>
               <Button
                 size="sm"
@@ -128,7 +135,7 @@ export function TableCard({
               </Button>
             </>
           ) : null}
-          {table.liveStatus === 'occupied' && table.primaryBooking ? (
+          {liveStatus === 'occupied' && table.primaryBooking ? (
             <>
               <Button
                 size="sm"
@@ -144,12 +151,12 @@ export function TableCard({
               </Button>
             </>
           ) : null}
-          {table.liveStatus === 'cleaning' ? (
+          {liveStatus === 'cleaning' ? (
             <Button size="sm" disabled={pending} onClick={() => setStatus('available')}>
               <Brush className="h-3 w-3" /> Mark available
             </Button>
           ) : null}
-          {table.liveStatus === 'unavailable' ? (
+          {liveStatus === 'unavailable' ? (
             <Button size="sm" disabled={pending} onClick={() => setStatus('available')}>
               Mark available
             </Button>
@@ -168,11 +175,11 @@ export function TableCard({
   );
 }
 
-function CardBody({ table }: { table: FloorTable }) {
+function CardBody({ table, liveStatus }: { table: FloorTable; liveStatus: TableStatus }) {
   const b = table.primaryBooking;
-  if (table.liveStatus === 'cleaning') return <p className="text-muted">Cleaning</p>;
-  if (table.liveStatus === 'unavailable') return <p className="text-muted">Out of service</p>;
-  if (b && table.liveStatus === 'occupied') {
+  if (liveStatus === 'cleaning') return <p className="text-muted">Cleaning</p>;
+  if (liveStatus === 'unavailable') return <p className="text-muted">Out of service</p>;
+  if (b && liveStatus === 'occupied') {
     return (
       <p>
         <span className="font-medium">{b.customer_full_name}</span> · party of {b.party_size}
@@ -187,7 +194,7 @@ function CardBody({ table }: { table: FloorTable }) {
       </p>
     );
   }
-  if (b && table.liveStatus === 'reserved') {
+  if (b && liveStatus === 'reserved') {
     return (
       <p>
         <span className="text-muted">

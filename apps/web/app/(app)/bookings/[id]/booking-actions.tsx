@@ -16,8 +16,11 @@ export function BookingActions({
   hideComplete?: boolean;
 }) {
   const router = useRouter();
-  const [pending, startTransition] = React.useTransition();
+  const [, startTransition] = React.useTransition();
   const [error, setError] = React.useState<string | undefined>();
+  const [optimisticStatus, setOptimisticStatus] = React.useOptimistic<BookingStatus>(status);
+  const pending = optimisticStatus !== status;
+  const liveStatus = optimisticStatus;
 
   function transition(next: 'seated' | 'completed' | 'cancelled' | 'no_show') {
     setError(undefined);
@@ -27,6 +30,7 @@ export function BookingActions({
       reason = r ?? undefined;
     }
     startTransition(async () => {
+      setOptimisticStatus(next);
       const input = reason ? { next, reason } : { next };
       const res = await transitionBookingAction(id, input);
       if (!res.ok) {
@@ -40,7 +44,7 @@ export function BookingActions({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        {status === 'confirmed' ? (
+        {liveStatus === 'confirmed' ? (
           <>
             <Button disabled={pending} onClick={() => transition('seated')}>
               Mark seated
@@ -53,7 +57,7 @@ export function BookingActions({
             </Button>
           </>
         ) : null}
-        {status === 'seated' ? (
+        {liveStatus === 'seated' ? (
           <>
             {!hideComplete ? (
               <Button disabled={pending} onClick={() => transition('completed')}>
