@@ -44,25 +44,26 @@ export default async function KodaConversationPage({
   const profile = await requireRole(['admin', 'front_desk']);
   const { conversationId } = await params;
   const supabase = await createServerClient();
-  const { data: convoRaw } = await supabase
-    .from('koda_conversations')
-    .select(
-      `id, organization_id, customer_id, channel, status, escalated_reason,
-       taken_over_by, taken_over_at, total_input_tokens, total_output_tokens, total_tool_calls,
-       customer:customers(id, full_name, phone)`,
-    )
-    .eq('id', conversationId)
-    .single();
+  const [{ data: convoRaw }, { data: msgsRaw }] = await Promise.all([
+    supabase
+      .from('koda_conversations')
+      .select(
+        `id, organization_id, customer_id, channel, status, escalated_reason,
+         taken_over_by, taken_over_at, total_input_tokens, total_output_tokens, total_tool_calls,
+         customer:customers(id, full_name, phone)`,
+      )
+      .eq('id', conversationId)
+      .single(),
+    supabase
+      .from('koda_messages')
+      .select(
+        `role, content, tool_calls, tool_name, staff_id, created_at, staff:profiles(full_name)`,
+      )
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true }),
+  ]);
   const convo = convoRaw as unknown as ConvoRow | null;
   if (!convo) notFound();
-
-  const { data: msgsRaw } = await supabase
-    .from('koda_messages')
-    .select(
-      `role, content, tool_calls, tool_name, staff_id, created_at, staff:profiles(full_name)`,
-    )
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
   const msgs = (msgsRaw ?? []) as unknown as MsgRow[];
   const bubbles: KodaMessageBubbleProps[] = msgs.map((m) => ({
     role: m.role,

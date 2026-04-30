@@ -14,11 +14,50 @@ export default async function LoyaltySettingsPage() {
   const profile = await requireRole(['admin']);
   const supabase = await createServerClient();
 
-  const { data: orgRow } = await supabase
-    .from('organizations')
-    .select('name, loyalty_enabled, loyalty_program_name, loyalty_earn_rate_idr_per_point')
-    .eq('id', profile.organization_id)
-    .single();
+  const sevenAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [
+    { data: orgRow },
+    { data: tierRows },
+    { data: rewardRows },
+    { count: members },
+    { data: earn7 },
+    { data: redeem7 },
+  ] = await Promise.all([
+    supabase
+      .from('organizations')
+      .select('name, loyalty_enabled, loyalty_program_name, loyalty_earn_rate_idr_per_point')
+      .eq('id', profile.organization_id)
+      .single(),
+    supabase
+      .from('loyalty_tiers')
+      .select('id, tier_index, name, min_points_lifetime, perks_text')
+      .eq('organization_id', profile.organization_id)
+      .order('tier_index', { ascending: true }),
+    supabase
+      .from('loyalty_rewards')
+      .select(
+        'id, name, description, type, type_value, points_cost, min_tier_index, is_active, sort_order',
+      )
+      .eq('organization_id', profile.organization_id)
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', profile.organization_id)
+      .eq('is_member', true),
+    supabase
+      .from('loyalty_transactions')
+      .select('points_earned')
+      .eq('organization_id', profile.organization_id)
+      .gte('created_at', sevenAgo.toISOString()),
+    supabase
+      .from('loyalty_redemptions')
+      .select('points_spent')
+      .eq('organization_id', profile.organization_id)
+      .eq('status', 'applied')
+      .gte('created_at', sevenAgo.toISOString()),
+  ]);
+
   const org = orgRow as
     | {
         name: string;
@@ -27,44 +66,12 @@ export default async function LoyaltySettingsPage() {
         loyalty_earn_rate_idr_per_point: number;
       }
     | null;
-
-  const { data: tierRows } = await supabase
-    .from('loyalty_tiers')
-    .select('id, tier_index, name, min_points_lifetime, perks_text')
-    .eq('organization_id', profile.organization_id)
-    .order('tier_index', { ascending: true });
   const tiers = (tierRows ?? []) as TierRow[];
   const tierOptions: TierOption[] = tiers.map((t) => ({
     tier_index: t.tier_index,
     name: t.name,
   }));
-
-  const { data: rewardRows } = await supabase
-    .from('loyalty_rewards')
-    .select(
-      'id, name, description, type, type_value, points_cost, min_tier_index, is_active, sort_order',
-    )
-    .eq('organization_id', profile.organization_id)
-    .order('sort_order', { ascending: true });
   const rewards = (rewardRows ?? []) as RewardRow[];
-
-  const sevenAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const { count: members } = await supabase
-    .from('customers')
-    .select('id', { count: 'exact', head: true })
-    .eq('organization_id', profile.organization_id)
-    .eq('is_member', true);
-  const { data: earn7 } = await supabase
-    .from('loyalty_transactions')
-    .select('points_earned')
-    .eq('organization_id', profile.organization_id)
-    .gte('created_at', sevenAgo.toISOString());
-  const { data: redeem7 } = await supabase
-    .from('loyalty_redemptions')
-    .select('points_spent')
-    .eq('organization_id', profile.organization_id)
-    .eq('status', 'applied')
-    .gte('created_at', sevenAgo.toISOString());
   const earned7 = ((earn7 ?? []) as Array<{ points_earned: number }>).reduce(
     (s, x) => s + x.points_earned,
     0,

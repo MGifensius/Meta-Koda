@@ -28,28 +28,31 @@ export default async function FloorPage() {
   const profile = await requireProfile();
   const supabase = await createServerClient();
 
-  const { data: rawTables } = await supabase
-    .from('tables')
-    .select('id, code, capacity, floor_area, status')
-    .eq('organization_id', profile.organization_id)
-    .eq('is_active', true)
-    .order('code', { ascending: true });
-  const tables = (rawTables ?? []) as RawTable[];
-
   const now = new Date();
   const sixHoursFromNow = new Date(now.getTime() + 6 * 60 * 60 * 1000);
-  const { data: rawBookings } = await supabase
-    .from('bookings')
-    .select(
-      `
-      id, table_id, starts_at, ends_at, party_size, status,
-      customer:customers!inner(full_name)
-    `,
-    )
-    .eq('organization_id', profile.organization_id)
-    .in('status', ['seated', 'confirmed'])
-    .lt('starts_at', sixHoursFromNow.toISOString())
-    .gt('ends_at', now.toISOString());
+
+  const [{ data: rawTables }, { data: rawBookings }] = await Promise.all([
+    supabase
+      .from('tables')
+      .select('id, code, capacity, floor_area, status')
+      .eq('organization_id', profile.organization_id)
+      .eq('is_active', true)
+      .order('code', { ascending: true }),
+    supabase
+      .from('bookings')
+      .select(
+        `
+        id, table_id, starts_at, ends_at, party_size, status,
+        customer:customers!inner(full_name)
+      `,
+      )
+      .eq('organization_id', profile.organization_id)
+      .in('status', ['seated', 'confirmed'])
+      .lt('starts_at', sixHoursFromNow.toISOString())
+      .gt('ends_at', now.toISOString()),
+  ]);
+
+  const tables = (rawTables ?? []) as RawTable[];
   const bookings = (rawBookings ?? []) as unknown as RawBooking[];
 
   const canMutate = profile.role === 'admin' || profile.role === 'front_desk';

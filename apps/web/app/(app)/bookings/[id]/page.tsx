@@ -49,20 +49,31 @@ export default async function BookingDetailPage({
   const profile = await requireProfile();
   const { id } = await params;
   const supabase = await createServerClient();
-  const { data } = await supabase
-    .from('bookings')
-    .select(
-      `
-      id, starts_at, ends_at, party_size, source, status,
-      special_request, internal_notes, cancelled_reason,
-      customer:customers!inner(id, display_id, full_name, is_member, points_balance, points_lifetime, current_tier_id),
-      table:tables!inner(id, code)
-    `,
-    )
-    .eq('id', id)
-    .single();
-  const b = data as unknown as BookingDetail | null;
+
+  const [bookingResult, orgResult] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select(
+        `
+        id, starts_at, ends_at, party_size, source, status,
+        special_request, internal_notes, cancelled_reason,
+        customer:customers!inner(id, display_id, full_name, is_member, points_balance, points_lifetime, current_tier_id),
+        table:tables!inner(id, code)
+      `,
+      )
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('organizations')
+      .select('loyalty_enabled, loyalty_earn_rate_idr_per_point')
+      .eq('id', profile.organization_id)
+      .single(),
+  ]);
+  const b = bookingResult.data as unknown as BookingDetail | null;
   if (!b) notFound();
+  const orgInfo = orgResult.data as
+    | { loyalty_enabled: boolean; loyalty_earn_rate_idr_per_point: number }
+    | null;
 
   const canMutate = profile.role === 'admin' || profile.role === 'front_desk';
   const canEdit = canMutate && (b.status === 'confirmed' || b.status === 'seated');
@@ -76,63 +87,60 @@ export default async function BookingDetailPage({
   let nextTierName: string | null = null;
   let nextTierThreshold: number | null = null;
 
-  if ((b.status === 'confirmed' || b.status === 'seated') && b.customer.is_member && canMutate) {
-    const { data: orgRow } = await supabase
-      .from('organizations')
-      .select('loyalty_enabled, loyalty_earn_rate_idr_per_point')
-      .eq('id', profile.organization_id)
-      .single();
-    const orgInfo = orgRow as
-      | { loyalty_enabled: boolean; loyalty_earn_rate_idr_per_point: number }
-      | null;
-    if (orgInfo?.loyalty_enabled) {
-      showLoyaltyCompletion = true;
-      earnRate = orgInfo.loyalty_earn_rate_idr_per_point;
+  if (
+    (b.status === 'confirmed' || b.status === 'seated') &&
+    b.customer.is_member &&
+    canMutate &&
+    orgInfo?.loyalty_enabled
+  ) {
+    showLoyaltyCompletion = true;
+    earnRate = orgInfo.loyalty_earn_rate_idr_per_point;
 
-      const { data: applied } = await supabase
+    const [{ data: applied }, { data: rewards }, { data: tiers }] = await Promise.all([
+      supabase
         .from('loyalty_redemptions')
         .select('id, reward_name, points_spent, created_at')
         .eq('booking_id', b.id)
-        .eq('status', 'applied');
-      preApplied = (applied ?? []) as PreApplied[];
-
-      const { data: rewards } = await supabase
+        .eq('status', 'applied'),
+      supabase
         .from('loyalty_rewards')
         .select('id, name, type, type_value, points_cost, min_tier_index, is_active')
         .eq('organization_id', profile.organization_id)
         .eq('is_active', true)
-        .order('sort_order', { ascending: true });
-      availableRewards = (
-        (rewards ?? []) as Array<{
-          id: string;
-          name: string;
-          type: LoyaltyRewardType;
-          type_value: number;
-          points_cost: number;
-          min_tier_index: number;
-        }>
-      ).filter((r) => !preApplied.some((p) => p.reward_name === r.name));
-
-      const { data: tiers } = await supabase
+        .order('sort_order', { ascending: true }),
+      supabase
         .from('loyalty_tiers')
         .select('id, tier_index, name, min_points_lifetime')
         .eq('organization_id', profile.organization_id)
-        .order('tier_index', { ascending: true });
-      const all = (tiers ?? []) as Array<{
+        .order('tier_index', { ascending: true }),
+    ]);
+
+    preApplied = (applied ?? []) as PreApplied[];
+    availableRewards = (
+      (rewards ?? []) as Array<{
         id: string;
-        tier_index: number;
         name: string;
-        min_points_lifetime: number;
-      }>;
-      const cur = all.find((t) => t.id === b.customer.current_tier_id);
-      if (cur) {
-        tierName = cur.name;
-        tierIndex = cur.tier_index;
-        const next = all.find((t) => t.tier_index === cur.tier_index + 1);
-        if (next) {
-          nextTierName = next.name;
-          nextTierThreshold = next.min_points_lifetime;
-        }
+        type: LoyaltyRewardType;
+        type_value: number;
+        points_cost: number;
+        min_tier_index: number;
+      }>
+    ).filter((r) => !preApplied.some((p) => p.reward_name === r.name));
+
+    const all = (tiers ?? []) as Array<{
+      id: string;
+      tier_index: number;
+      name: string;
+      min_points_lifetime: number;
+    }>;
+    const cur = all.find((t) => t.id === b.customer.current_tier_id);
+    if (cur) {
+      tierName = cur.name;
+      tierIndex = cur.tier_index;
+      const next = all.find((t) => t.tier_index === cur.tier_index + 1);
+      if (next) {
+        nextTierName = next.name;
+        nextTierThreshold = next.min_points_lifetime;
       }
     }
   }

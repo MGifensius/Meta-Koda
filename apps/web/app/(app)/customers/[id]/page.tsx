@@ -12,13 +12,26 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const { id } = await params;
   const supabase = await createServerClient();
 
-  const { data } = await supabase
-    .from('customers')
-    .select(
-      'id, display_id, full_name, phone, email, birth_date, notes, tags, created_at, is_member, member_since, points_balance, points_lifetime, current_tier_id',
-    )
-    .eq('id', id)
-    .single();
+  const [customerResult, orgResult, tiersResult] = await Promise.all([
+    supabase
+      .from('customers')
+      .select(
+        'id, display_id, full_name, phone, email, birth_date, notes, tags, created_at, is_member, member_since, points_balance, points_lifetime, current_tier_id',
+      )
+      .eq('id', id)
+      .single(),
+    supabase
+      .from('organizations')
+      .select('loyalty_enabled, loyalty_program_name')
+      .eq('id', profile.organization_id)
+      .single(),
+    supabase
+      .from('loyalty_tiers')
+      .select('id, tier_index, name, min_points_lifetime')
+      .eq('organization_id', profile.organization_id)
+      .order('tier_index', { ascending: true }),
+  ]);
+
   type CustomerDetail = {
     id: string;
     display_id: string;
@@ -35,27 +48,16 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
     points_lifetime: number;
     current_tier_id: string | null;
   };
-  const c = data as CustomerDetail | null;
+  const c = customerResult.data as CustomerDetail | null;
   if (!c) notFound();
-
-  const { data: orgRow } = await supabase
-    .from('organizations')
-    .select('loyalty_enabled, loyalty_program_name')
-    .eq('id', profile.organization_id)
-    .single();
-  const org = orgRow as { loyalty_enabled: boolean; loyalty_program_name: string } | null;
+  const org = orgResult.data as { loyalty_enabled: boolean; loyalty_program_name: string } | null;
 
   let tierName = 'None';
   let tierIndex = 0;
   let nextTierName: string | null = null;
   let nextTierThreshold: number | null = null;
   if (c.is_member && c.current_tier_id) {
-    const { data: tiers } = await supabase
-      .from('loyalty_tiers')
-      .select('id, tier_index, name, min_points_lifetime')
-      .eq('organization_id', profile.organization_id)
-      .order('tier_index', { ascending: true });
-    const all = (tiers ?? []) as Array<{
+    const all = (tiersResult.data ?? []) as Array<{
       id: string;
       tier_index: number;
       name: string;
