@@ -3,7 +3,8 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Input, Badge, DataTable } from '@buranchi/ui';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input, Badge, DataTable, Button } from '@buranchi/ui';
 
 export interface CustomerRow {
   id: string;
@@ -102,22 +103,41 @@ export function CustomerListClient({
   initialRows,
   initialQuery,
   loyaltyEnabled,
+  page,
+  totalPages,
+  totalCount,
+  pageSize,
 }: {
   initialRows: CustomerRow[];
   initialQuery: string;
   loyaltyEnabled: boolean;
+  page: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
 }) {
   const router = useRouter();
   const [q, setQ] = React.useState(initialQuery);
 
+  // When the user types in the search box, debounce the URL replace and reset
+  // back to page 1 — searching from page 5 of the unfiltered list shouldn't
+  // land on page 5 of the filtered list.
   React.useEffect(() => {
     const handle = setTimeout(() => {
       const params = new URLSearchParams();
       if (q) params.set('q', q);
-      router.replace(`/customers${params.toString() ? `?${params.toString()}` : ''}`);
+      const target = `/customers${params.toString() ? `?${params.toString()}` : ''}`;
+      router.replace(target);
     }, 250);
     return () => clearTimeout(handle);
   }, [q, router]);
+
+  function gotoPage(next: number) {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (next > 1) params.set('page', String(next));
+    router.push(`/customers${params.toString() ? `?${params.toString()}` : ''}`);
+  }
 
   const columns = React.useMemo(() => {
     if (!loyaltyEnabled) return baseColumns;
@@ -127,6 +147,9 @@ export function CustomerListClient({
     return next;
   }, [loyaltyEnabled]);
 
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, totalCount);
+
   return (
     <div className="space-y-3">
       <Input placeholder="Search by name…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -135,6 +158,36 @@ export function CustomerListClient({
         data={initialRows}
         onRowClick={(row) => router.push(`/customers/${row.id}`)}
       />
+      {totalCount > 0 ? (
+        <div className="flex items-center justify-between text-[12px] text-muted">
+          <span>
+            {rangeStart}–{rangeEnd} of {totalCount.toLocaleString()}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => gotoPage(page - 1)}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </Button>
+            <span className="text-fg">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={page >= totalPages}
+              onClick={() => gotoPage(page + 1)}
+              aria-label="Next page"
+            >
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

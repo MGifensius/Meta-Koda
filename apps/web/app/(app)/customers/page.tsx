@@ -5,10 +5,20 @@ import { requireProfile } from '@/lib/auth/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { CustomerListClient, type CustomerRow } from './customer-list-client';
 
-export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+const PAGE_SIZE = 25;
+
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; page?: string }>;
+}) {
   const profile = await requireProfile();
-  const { q } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
   const supabase = await createServerClient();
+
+  const page = Math.max(1, Number.parseInt(pageParam ?? '1', 10) || 1);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
 
   const { data: orgRow } = await supabase
     .from('organizations')
@@ -21,15 +31,16 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
     .from('customers')
     .select(
       'id, display_id, full_name, phone, tags, created_at, is_member, points_balance, current_tier:loyalty_tiers(name, tier_index)',
+      { count: 'exact' },
     )
     .order('created_at', { ascending: false })
-    .limit(100);
+    .range(from, to);
 
   if (q && q.trim() !== '') {
     query = query.ilike('full_name', `%${q.trim()}%`);
   }
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) throw error;
   type CustomerListRow = {
     id: string;
@@ -55,6 +66,9 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
     tier_index: c.current_tier?.tier_index ?? null,
   }));
 
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   return (
     <>
       <Topbar
@@ -66,7 +80,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           </Button>
         }
       />
-      {rows.length === 0 && !q ? (
+      {rows.length === 0 && !q && page === 1 ? (
         <EmptyState
           icon={<Users className="h-5 w-5" />}
           title="No customers yet"
@@ -78,7 +92,15 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
           }
         />
       ) : (
-        <CustomerListClient initialRows={rows} initialQuery={q ?? ''} loyaltyEnabled={loyaltyEnabled} />
+        <CustomerListClient
+          initialRows={rows}
+          initialQuery={q ?? ''}
+          loyaltyEnabled={loyaltyEnabled}
+          page={page}
+          totalPages={totalPages}
+          totalCount={total}
+          pageSize={PAGE_SIZE}
+        />
       )}
     </>
   );

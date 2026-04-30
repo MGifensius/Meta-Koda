@@ -23,13 +23,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen flex bg-canvas">
+    <div className="h-screen flex bg-canvas overflow-hidden">
       <AppSidebar
         profile={profile}
         organizationName={org.name}
         avatarSignedUrl={avatarSignedUrl}
       />
-      <main className="flex-1 p-6 overflow-auto">{children}</main>
+      <main className="flex-1 p-6 overflow-y-auto">{children}</main>
     </div>
   );
 }
