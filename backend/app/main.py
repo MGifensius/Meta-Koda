@@ -4,7 +4,8 @@ from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import (
-    customers, bookings, marketing, loyalty, pos, floor, chat, webhook, admin,
+    customers, bookings, marketing, loyalty, pos, floor, chat,
+    webhook, admin, demo_chat,
 )
 from app.services.scheduler import start_scheduler, shutdown_scheduler
 from app.services.auth import current_user, CurrentUser
@@ -51,6 +52,7 @@ app.include_router(floor.router, prefix="/api/floor", tags=["Floor Operation"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 app.include_router(webhook.router, prefix="/api/webhook", tags=["Webhook"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Super Admin"])
+app.include_router(demo_chat.router, prefix="/api/demo-chat", tags=["Demo Chat"])
 
 
 @app.get("/api/health")

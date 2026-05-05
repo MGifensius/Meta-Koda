@@ -65,3 +65,8 @@ htmlcov/
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# =============================
+# Local deployment scratch dir
+# =============================
+.deploy/
