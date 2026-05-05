@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.db import get_db  # noqa: E402
 
-DEMO_TENANT_NAME = "Kafé Cendana"
+DEMO_TENANT_NAME = "Buranchi"
 
 # Seed customers' canonical state from migration 030 — restored after reset.
 SEED_CUSTOMERS = [

@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from app.db import get_db  # noqa: E402
 
-DEMO_TENANT_NAME = "Kafé Cendana"
+DEMO_TENANT_NAME = "Buranchi"
 
 # Distribution weights — Diamond (Anindya) eats here often, Bronze (Ilham) just started.
 CUSTOMER_WEIGHTS = [
@@ -177,12 +177,15 @@ def main() -> None:
     # ---- Today's bookings (4 across the day) ----
     print("\n[ok] Seeding today's bookings...")
     today = now.date().isoformat()
+    # Real Buranchi tables (post-migration 033)
+    # `seating` must satisfy bookings_seating_check (migration 008): one of
+    # 'indoor', 'outdoor', 'window', 'private'. The real zone name comes
+    # from tables.zone via table_id, so the area label isn't lost.
     booking_specs = [
-        # phone, time, party_size, table, status, seating, notes
-        ("6281234500001", "12:00", 2, "K1", "done",     "Indoor",   None),
-        ("6281234500002", "19:00", 4, "T1", "occupied", "Outdoor",  "Anniversary"),
-        ("6281234500003", "20:00", 3, "K3", "reserved", "Indoor",   "Window seat preferred"),
-        ("6281234500005", "21:00", 5, "P1", "reserved", "Private",  "Birthday celebration"),
+        ("6281234500001", "12:00", 2, "PS-1", "done",     "outdoor", "Poolside spot"),
+        ("6281234500002", "19:00", 4, "TO-2", "occupied", "outdoor", "Teras Otella - Anniversary"),
+        ("6281234500003", "20:00", 6, "PL-1", "reserved", "outdoor", "Poolside meja segitiga preferred"),
+        ("6281234500005", "21:00", 8, "IR-1", "reserved", "indoor",  "Indoor Otella - Birthday celebration"),
     ]
     bookings_inserted = 0
     for phone, time_str, pax, table_id, status, seating, notes in booking_specs:
@@ -206,7 +209,7 @@ def main() -> None:
             "table_id": table_id,
             "guest_name": cust["name"],
             "customer_phone": phone,
-            "seating": seating.lower(),
+            "seating": seating,
             "notes": notes,
             "status": status,
             "channel": "whatsapp",
@@ -261,7 +264,7 @@ def main() -> None:
                 "customer",
             ),
             (
-                f"Halo Kak {cust['name']}! Aku Koda dari Kafé Cendana 🌿 Bisa Kak, "
+                f"Halo Kak {cust['name']}! Aku Koda dari Buranchi 🌿 Bisa Kak, "
                 "untuk berapa orang ya?",
                 "bot",
             ),

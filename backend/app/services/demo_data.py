@@ -11,7 +11,7 @@ import random
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-DEMO_TENANT_NAME = "Kafé Cendana"
+DEMO_TENANT_NAME = "Buranchi"
 
 SEED_CUSTOMERS = [
     {"phone": "6281234500001", "name": "Anindya Saraswati", "email": "anindya@example.id",
@@ -199,11 +199,17 @@ def seed_kafe_cendana(db) -> dict:
                 points_total += points_awarded
 
     today = now.date().isoformat()
+    # Real Buranchi tables: TO-* (Teras Otella, outdoor 4-pax), PS-* (Poolside
+    # small, outdoor 2-pax), PL-* (Poolside large segitiga, outdoor 6-pax),
+    # IL-* (Indoor Otella long, indoor 10-pax), IR-* (Indoor Otella round,
+    # indoor 8-pax). The actual zone label comes from tables.zone via
+    # table_id — `seating` here is just the indoor/outdoor preference,
+    # constrained by bookings_seating_check from migration 008.
     booking_specs = [
-        ("6281234500001", "12:00", 2, "K1", "done",     "Indoor",   None),
-        ("6281234500002", "19:00", 4, "T1", "occupied", "Outdoor",  "Anniversary"),
-        ("6281234500003", "20:00", 3, "K3", "reserved", "Indoor",   "Window seat preferred"),
-        ("6281234500005", "21:00", 5, "P1", "reserved", "Private",  "Birthday celebration"),
+        ("6281234500001", "12:00", 2, "PS-1", "done",     "outdoor", "Poolside spot"),
+        ("6281234500002", "19:00", 4, "TO-2", "occupied", "outdoor", "Teras Otella - Anniversary"),
+        ("6281234500003", "20:00", 6, "PL-1", "reserved", "outdoor", "Poolside meja segitiga preferred"),
+        ("6281234500005", "21:00", 8, "IR-1", "reserved", "indoor",  "Indoor Otella - Birthday celebration"),
     ]
     bookings_inserted = 0
     for phone, t_str, pax, tbl, status, seating, notes in booking_specs:
@@ -221,7 +227,7 @@ def seed_kafe_cendana(db) -> dict:
             "tenant_id": tid, "customer_id": cust["id"], "date": today,
             "time": t_str, "party_size": pax, "table_id": tbl,
             "guest_name": cust["name"], "customer_phone": phone,
-            "seating": seating.lower(), "notes": notes, "status": status,
+            "seating": seating, "notes": notes, "status": status,
             "channel": "whatsapp",
             "confirmation_state": "confirmed" if status != "reserved" else "sent",
             "confirmation_sent_at": now.isoformat(),
@@ -250,7 +256,7 @@ def seed_kafe_cendana(db) -> dict:
         }).execute().data[0]
         msgs = [
             ("Halo, mau cek ada meja kosong ga ya buat malem ini?", "customer"),
-            (f"Halo Kak {cust['name']}! Aku Koda dari Kafé Cendana 🌿 Bisa Kak, untuk berapa orang ya?", "bot"),
+            (f"Halo Kak {cust['name']}! Aku Koda dari Buranchi 🌿 Bisa Kak, untuk berapa orang ya?", "bot"),
             (last_msg, "customer" if unread > 0 else "bot"),
         ]
         for content, sender in msgs:
