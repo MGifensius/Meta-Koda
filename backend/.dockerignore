@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.log
+backend.log
+backend.err.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+scripts/create_tenant_oneshot.py
+.env
+.env.local
