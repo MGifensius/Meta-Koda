@@ -45,7 +45,7 @@ export function LoginScreen() {
             Meta-Koda
           </h1>
           <p className="text-[12px] uppercase tracking-wider font-mono-label ink-4 mt-1">
-            Buranchi Intelligence Core
+            Restaurant Operations Platform
           </p>
         </div>
 

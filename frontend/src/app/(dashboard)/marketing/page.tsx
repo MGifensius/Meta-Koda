@@ -205,7 +205,7 @@ export default function MarketingPage() {
               <div className="space-y-1.5">
                 <Label>Isi Pesan</Label>
                 <Textarea
-                  placeholder="Halo Kak {name}! Akhir pekan ini diskon 20% di Buranchi..."
+                  placeholder="Halo Kak {name}! Akhir pekan ini diskon 20% di restoran kami..."
                   rows={5}
                   value={formMessage}
                   onChange={(e) => setFormMessage(e.target.value)}

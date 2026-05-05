@@ -286,7 +286,7 @@ export default function SettingsPage() {
                 <Input
                   value={settings.welcome_message}
                   onChange={(e) => updateField("welcome_message", e.target.value)}
-                  placeholder="Halo! Selamat datang di Buranchi 👋"
+                  placeholder="Halo! Selamat datang 👋"
                 />
               </div>
               <div className="space-y-1.5">
@@ -497,7 +497,7 @@ export default function SettingsPage() {
                 <Input
                   value={settings.welcome_message}
                   onChange={(e) => updateField("welcome_message", e.target.value)}
-                  placeholder="Halo! Selamat datang di Buranchi."
+                  placeholder="Halo! Selamat datang."
                 />
                 <p className="text-[11px] text-muted-foreground">Pesan pertama yang dikirim bot saat customer baru memulai percakapan</p>
               </div>

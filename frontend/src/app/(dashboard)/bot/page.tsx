@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 
 export default function BotPage() {
   const [botEnabled, setBotEnabled] = useState(true);
-  const [greeting, setGreeting] = useState("Halo! Selamat datang di Buranchi. Ada yang bisa saya bantu?");
+  const [greeting, setGreeting] = useState("Halo! Ada yang bisa saya bantu?");
   const [personality, setPersonality] = useState("Ramah, helpful, dan menggunakan bahasa Indonesia yang sopan. Gunakan emoji secukupnya.");
   const [autoBooking, setAutoBooking] = useState(true);
   const [autoLoyalty, setAutoLoyalty] = useState(true);

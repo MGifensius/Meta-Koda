@@ -190,8 +190,8 @@ export const rewards: LoyaltyReward[] = [
 export const campaigns: Campaign[] = [
   { id: "camp1", name: "Promo Weekend Special", message: "Hai {name}! Weekend ini ada promo special. Diskon 20% untuk semua menu!", targetAudience: "all", audienceCount: 245, status: "sent", sentAt: "2026-04-11T10:00:00", delivered: 238, read: 156 },
   { id: "camp2", name: "Member Exclusive", message: "Hi {name}! Khusus member, dapet FREE dessert + 2x points bulan ini!", targetAudience: "member", audienceCount: 142, status: "sent", sentAt: "2026-04-01T08:00:00", delivered: 140, read: 98 },
-  { id: "camp3", name: "Join Member Promo", message: "Hai {name}! Yuk jadi member Buranchi. Dapet diskon 15% langsung + bonus 200 points!", targetAudience: "non-member", audienceCount: 103, status: "scheduled", scheduledAt: "2026-04-16T10:00:00", delivered: 0, read: 0 },
-  { id: "camp4", name: "New Menu Launch", message: "Hi {name}! Buranchi punya menu baru. Coba Wagyu Rendang Sushi!", targetAudience: "all", audienceCount: 245, status: "draft", delivered: 0, read: 0 },
+  { id: "camp3", name: "Join Member Promo", message: "Hai {name}! Yuk jadi member kami. Dapet diskon 15% langsung + bonus 200 points!", targetAudience: "non-member", audienceCount: 103, status: "scheduled", scheduledAt: "2026-04-16T10:00:00", delivered: 0, read: 0 },
+  { id: "camp4", name: "New Menu Launch", message: "Hi {name}! Ada menu baru nih, jangan sampai kelewatan ya!", targetAudience: "all", audienceCount: 245, status: "draft", delivered: 0, read: 0 },
 ];
 
 // --- POS Menu ---

@@ -3,9 +3,9 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
-  title: "Meta-Koda | Buranchi CRM",
+  title: "Meta-Koda",
   description:
-    "Buranchi Intelligence Core — Customers, Bookings, Marketing, Loyalty & POS",
+    "Multi-tenant restaurant operations platform — bookings, floor management, loyalty, marketing, and AI-powered customer engagement.",
 };
 
 export default function RootLayout({
