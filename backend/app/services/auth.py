@@ -111,8 +111,11 @@ async def current_user(
         raise HTTPException(401, "Token missing sub claim")
 
     db = get_db()
+    # Single round-trip: fetch user + their tenant via FK join. Cuts ~150-300ms
+    # of latency vs sequential lookups (Supabase REST API roundtrip baseline).
     rows = db.table("users").select(
-        "id, tenant_id, role, email, status"
+        "id, tenant_id, role, email, status, "
+        "tenants(subscription_status, features, trial_ends_at)"
     ).eq("id", user_id).execute().data or []
     if not rows:
         raise HTTPException(403, "User authenticated but not provisioned in users table")
@@ -131,12 +134,9 @@ async def current_user(
     # redirects to /expired.
     features: list[str] = []
     if u["role"] != "super_admin" and u["tenant_id"]:
-        trows = db.table("tenants").select(
-            "subscription_status, features, trial_ends_at, business_name"
-        ).eq("id", u["tenant_id"]).execute().data or []
-        if not trows:
+        tenant = u.get("tenants") or {}
+        if not tenant:
             raise HTTPException(403, "Tenant not found")
-        tenant = trows[0]
         sub_status = tenant.get("subscription_status")
         now = datetime.now(timezone.utc)
         if sub_status in ("expired", "cancelled"):
@@ -154,6 +154,9 @@ async def current_user(
                         "trial_expired: contact Meta-Koda to subscribe.",
                     )
         if sub_status == "active":
+            # Active still requires a fresh check on the latest paid period —
+            # this is its own roundtrip but only fires when status='active'
+            # (Buranchi/Demo) so the common case (trial) still pays one query.
             sub = db.table("tenant_subscriptions").select(
                 "expires_at"
             ).eq("tenant_id", u["tenant_id"]).order(
