@@ -100,27 +100,28 @@ export default function PublicChatPage() {
     );
   }, [registered, phone, name, messages, slug, storageKey]);
 
-  // Scroll to bottom
+  // Scroll to bottom on every new message / typing indicator. Use a
+  // microtask so the DOM has rendered before we measure scrollHeight.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const scroll = () => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    };
+    scroll();
+    // Run again after layout settles — fixes mobile browsers where
+    // the first scroll fires before the new message is laid out.
+    const t = setTimeout(scroll, 50);
+    return () => clearTimeout(t);
   }, [messages, sending]);
 
   const startChat = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone.trim() || !name.trim()) return;
     setRegistered(true);
-    if (tenant?.welcome_message) {
-      setMessages([
-        {
-          id: crypto.randomUUID(),
-          role: "bot",
-          text: tenant.welcome_message,
-          ts: Date.now(),
-        },
-      ]);
-    }
+    // Don't pre-populate a bot greeting — the customer should send the
+    // first message, exactly like real WhatsApp. Bot will reply when
+    // they do.
   };
 
   const send = async () => {
@@ -291,6 +292,17 @@ export default function PublicChatPage() {
             "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cpath d='M10 0 L20 10 L10 20 L0 10 Z' fill='%23d6cdc1' fill-opacity='0.15'/%3E%3C/svg%3E\")",
         }}
       >
+        {messages.length === 0 && !sending && (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="bg-white/80 rounded-lg px-4 py-3 max-w-xs text-center text-[12px] text-gray-600 shadow-sm">
+              Mulai chat dengan mengetik pesan di bawah 👇
+              <br />
+              <span className="text-[11px] text-gray-500">
+                Tanya menu, jadwal buka, atau langsung reservasi.
+              </span>
+            </div>
+          </div>
+        )}
         {messages.map((m) => (
           <div
             key={m.id}

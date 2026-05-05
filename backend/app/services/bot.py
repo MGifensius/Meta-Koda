@@ -1,6 +1,7 @@
 """
-AI Agent for Buranchi restaurant — the Buranchi Intelligence Core (BIC).
-Uses OpenAI gpt-4o-mini with function calling.
+AI Agent for Meta-Koda multi-tenant restaurant SaaS.
+Uses OpenAI gpt-4o-mini with function calling. The system prompt is built
+dynamically per tenant — see `_build_system_prompt` below.
 
 Capabilities via function calling:
 - get_availability: Check table availability for a given date/time/pax
@@ -29,19 +30,28 @@ OPENAI_MODEL = "gpt-4o-mini"  # Fast and cheap, great for Indonesian
 # routing layer (PR 6) and stashes it in this contextvar. Every helper /
 # tool function in this module reads it via `_tid()` to scope DB queries.
 # When no tenant is resolvable (dev / unconfigured webhook), we fall back
-# to Buranchi so single-tenant deployments keep working.
-_FALLBACK_TENANT = "00000000-0000-0000-0000-000000000001"  # Buranchi
+# to the seed Buranchi tenant so single-tenant deployments keep working.
+_FALLBACK_TENANT = "00000000-0000-0000-0000-000000000001"  # Buranchi seed UUID
 _tenant_ctx: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "bot_tenant_ctx", default=None
 )
 
 
 def _tid() -> str:
-    """Current tenant_id for bot DB scoping. Falls back to Buranchi when unset."""
+    """Current tenant_id for bot DB scoping. Falls back to the seed Buranchi
+    tenant when unset, so single-tenant deployments / dev keep working."""
     return _tenant_ctx.get() or _FALLBACK_TENANT
 
-SYSTEM_PROMPT = """Kamu adalah "Koda", asisten virtual restoran Buranchi.
-Kamu adalah Buranchi Intelligence Core (BIC) — mengelola lifecycle customer dari inquiry sampai post-dining.
+
+def _build_system_prompt(business_name: str) -> str:
+    """Substitute the tenant's business name into every {BIZ} placeholder
+    in the system prompt template. Bot will then introduce itself as
+    "Koda dari <business_name>" instead of always saying "Buranchi"."""
+    safe = (business_name or "Restoran").strip() or "Restoran"
+    return _SYSTEM_PROMPT_TEMPLATE.replace("{BIZ}", safe)
+
+_SYSTEM_PROMPT_TEMPLATE = """Kamu adalah "Koda", asisten virtual restoran {BIZ}.
+Kamu adalah Meta-Koda Intelligence Core (MIC) — mengelola lifecycle customer dari inquiry sampai post-dining untuk restoran {BIZ}.
 
 ⚡ ATURAN WAJIB #1 — TANYA NAMA DI PESAN PEMBUKA:
 Jika context berisi [NEEDS_NAME: true], maka balasan PERTAMA kamu di sesi ini WAJIB mengandung pertanyaan nama customer.
@@ -72,12 +82,12 @@ PESAN PEMBUKA:
 - Saat customer menyapa ("halo", "hai", "hi"), balas hangat, perkenalkan diri singkat, dan ajak ngobrol — mengalir, TANPA list.
 - Jika customer baru (NEEDS_NAME: true), SELALU selipkan pertanyaan nama di pesan pembuka yang SAMA, supaya tidak perlu tanya lagi di round berikutnya. Pertanyaan nama ditaruh di akhir, dalam kalimat terpisah yang natural.
   • Contoh lengkap (greeting + service + nama, NEEDS_NAME=true):
-    "Halo Kak! Aku Koda, asisten dari Buranchi 👋 Ada yang bisa dibantu hari ini? Mau booking meja atau tanya-tanya menu? Oh iya, boleh tahu nama Kakak dulu biar obrolannya lebih enak 😊"
+    "Halo Kak! Aku Koda, asisten dari {BIZ} 👋 Ada yang bisa dibantu hari ini? Mau booking meja atau tanya-tanya menu? Oh iya, boleh tahu nama Kakak dulu biar obrolannya lebih enak 😊"
   • Contoh lain (NEEDS_NAME=true):
-    "Hai Kak! Senang kenalan, aku Koda dari Buranchi. Lagi cari info apa nih — booking, menu, atau poin membership? Sebelum itu, panggil Kakak siapa ya?"
+    "Hai Kak! Senang kenalan, aku Koda dari {BIZ}. Lagi cari info apa nih — booking, menu, atau poin membership? Sebelum itu, panggil Kakak siapa ya?"
 - Jika nama sudah ada di context (NEEDS_NAME=false), JANGAN tanya nama. Langsung sapa pakai nama mereka.
   • Contoh (NEEDS_NAME=false, nama = Marchel):
-    "Halo Kak Marchel! Aku Koda dari Buranchi 👋 Ada yang bisa dibantu hari ini? Mau booking meja atau tanya-tanya menu?"
+    "Halo Kak Marchel! Aku Koda dari {BIZ} 👋 Ada yang bisa dibantu hari ini? Mau booking meja atau tanya-tanya menu?"
 
 INTENT HANDLING:
 1. BOOKING — Detect: "book", "reservasi", "meja", "pesan", "mau makan", "ntar malem"
@@ -106,7 +116,7 @@ INTENT HANDLING:
 RULES:
 - Jangan buat janji yang tidak bisa ditepati.
 - Untuk booking, SELALU confirm detail sebelum create_booking.
-- Jika di luar scope restoran, bilang: "Maaf Kak, saya hanya bisa membantu untuk reservasi dan informasi seputar Buranchi."
+- Jika di luar scope restoran, bilang: "Maaf Kak, saya hanya bisa membantu untuk reservasi dan informasi seputar {BIZ}."
 - Jika request kurang lengkap (misal "mau pesen meja"), tanyakan: Tanggal, Jam, Jumlah orang.
 - Jika context menunjukkan [NEEDS_NAME: true], tanyakan nama customer dengan cara yang NATURAL, singkat, dan langsung. Tapi jika nama sudah ada di context, JANGAN tanya lagi.
   • Contoh natural (pakai salah satu ini, jangan ubah jadi kaku): "Atas nama siapa ya Kak?", "Boleh tahu nama Kakak dulu?", "Reservasinya atas nama siapa Kak?"
@@ -282,7 +292,7 @@ def _tool_get_availability(date: str, time: str, pax: int) -> dict:
                 "last_order": last_order,
                 "latest_reservation": latest_res_time,
                 "days_open": days_open,
-                "suggestion": f"Buranchi buka {days_open} jam {hours}, last order jam {last_order}. Reservasi terakhir bisa dilakukan untuk jam {latest_res_time}. Silakan pilih jam antara {open_time} - {latest_res_time}.",
+                "suggestion": f"Restoran buka {days_open} jam {hours}, last order jam {last_order}. Reservasi terakhir bisa dilakukan untuk jam {latest_res_time}. Silakan pilih jam antara {open_time} - {latest_res_time}.",
             }
     except (ValueError, IndexError):
         pass
@@ -514,14 +524,73 @@ TOOL_HANDLERS = {
 }
 
 
+# Words the AI sometimes mistakes for a customer name. These are common
+# confirmation/refusal/pronoun tokens in Indonesian + English chat. If the
+# AI passes any of these to `update_customer_name`, the tool refuses
+# silently — better to ask again than save "Betul" as the customer's name.
+_NOT_A_NAME = {
+    # Confirmation / agreement
+    "betul", "ya", "iya", "yes", "ok", "oke", "okay", "okey", "sip", "sippp",
+    "deal", "gas", "gaspol", "kuy", "yuk", "boleh", "bisa", "sabi", "setuju",
+    "benar", "tepat", "fix", "fiks", "fixed", "siap", "yoi", "noted",
+    # Refusal / negation
+    "tidak", "nggak", "ga", "gak", "enggak", "no", "nope", "jangan",
+    "batal", "cancel", "skip", "ngga", "engga", "bukan",
+    # Pronouns
+    "saya", "aku", "gue", "gw", "kamu", "lo", "lu", "ane", "anda", "dia", "kita",
+    # Generic / placeholders
+    "test", "testing", "coba", "asd", "dummy", "sample",
+    # Greetings
+    "halo", "hai", "hi", "hei", "selamat", "pagi", "siang", "sore", "malam",
+    # Common requests / nouns the AI might mis-extract
+    "menu", "booking", "reservasi", "meja", "pesan", "harga", "promo",
+    "member", "loyalty", "poin", "point", "reward", "info", "tanya",
+    # Politeness
+    "terima", "kasih", "makasih", "thanks", "thank", "thx", "tolong",
+    "maaf", "permisi", "kak", "mbak", "mas", "pak", "bu", "bro", "sis",
+    # Single-word confirmations of detail
+    "sendiri", "saja", "aja", "doang",
+}
+
+
+def _is_likely_name(name: str) -> bool:
+    """Reject obvious non-names so the bot doesn't save 'Betul' or 'Saya'
+    as a customer's display name. Returns True only when the string looks
+    plausibly like a real human name."""
+    n = name.strip()
+    if len(n) < 2 or len(n) > 50:
+        return False
+    # Reject anything that contains digits or symbols beyond standard name chars
+    if any(c.isdigit() for c in n):
+        return False
+    # Reject if any word is in the not-a-name list
+    words = [w.lower().strip(".,!?;:") for w in n.split()]
+    if any(w in _NOT_A_NAME for w in words):
+        return False
+    # Reject if entirely lowercase short single word — usually a confirmation
+    # or pronoun (e.g. "betul", "saya"). Real names typed by humans almost
+    # always start with an uppercase letter.
+    if len(words) == 1 and n.islower():
+        return False
+    return True
+
+
 def _tool_update_customer_name(customer_id: str, name: str) -> dict:
-    """Save customer name to database."""
+    """Save customer name to database. Refuses obvious non-names (confirmation
+    words, pronouns, greetings) so the AI can't accidentally rename a
+    customer to 'Betul' or 'Saya'."""
     if not customer_id or not name:
         return {"success": False, "error": "Missing customer_id or name"}
-    # Capitalize properly
+    if not _is_likely_name(name):
+        return {
+            "success": False,
+            "error": (
+                f"'{name}' tidak terlihat seperti nama orang — kemungkinan kata "
+                "konfirmasi/pronouns/greeting. Tanyakan nama customer dengan "
+                "lebih jelas terlebih dahulu sebelum memanggil tool ini lagi."
+            ),
+        }
     clean_name = " ".join(w.capitalize() for w in name.strip().split())
-    if len(clean_name) < 2 or len(clean_name) > 50:
-        return {"success": False, "error": "Invalid name length"}
     try:
         db = get_db()
         db.table("customers").update({"name": clean_name}).eq(
@@ -611,7 +680,7 @@ async def generate_reply(customer_phone: str, message: str,
 
     settings_context = (
         f"\n\nINFORMASI RESTORAN (gunakan untuk menjawab pertanyaan):\n"
-        f"Nama: {settings.get('name', 'Buranchi')}\n"
+        f"Nama: {settings.get('name', 'Restoran')}\n"
         f"Jam buka: {settings.get('days_open', 'Setiap hari')} {settings.get('opening_hours', '11:00 - 22:00')}\n"
         f"Last order: {settings.get('last_order', '21:30')}\n"
         f"Lokasi: {settings.get('location', '')}\n"
@@ -621,7 +690,8 @@ async def generate_reply(customer_phone: str, message: str,
         f"\n{table_info}\n"
     )
 
-    system_prompt = SYSTEM_PROMPT + settings_context + customer_context
+    biz_name = settings.get("name") or "Restoran"
+    system_prompt = _build_system_prompt(biz_name) + settings_context + customer_context
 
     # Build OpenAI messages — last 6 messages of history
     messages = [{"role": "system", "content": system_prompt}]
@@ -722,7 +792,7 @@ def _fallback_reply(message: str, customer_name: str = None, is_first_message: b
     from app.db import get_db
     msg = message.lower()
     settings = _get_restaurant_settings()
-    resto_name = settings.get("name", "Buranchi")
+    resto_name = settings.get("name", "Restoran")
 
     # Helper: name prefix
     has_name = customer_name and not customer_name.startswith("+")
@@ -978,7 +1048,7 @@ async def handle_incoming_message(
         platform: Source platform (whatsapp, instagram, tiktok)
         tenant_id: Tenant that owns the receiving WABA. Resolved upstream by
                    the webhook router from `phone_number_id`. When None we
-                   fall back to the default tenant (Buranchi) so legacy
+                   fall back to the default seed tenant so legacy
                    single-tenant deployments and dev keep working.
     """
     # Stash tenant context for every helper / tool / fallback that runs
