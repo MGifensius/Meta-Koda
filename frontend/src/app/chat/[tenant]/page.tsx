@@ -30,6 +30,10 @@ type Msg = {
   role: "bot" | "me";
   text: string;
   ts: number;
+  /** Local optimistic message that hasn't yet appeared on the server. The
+   *  poll/refetch keeps these on screen until the server-stored copy
+   *  arrives, then the optimistic one is dropped to avoid a duplicate. */
+  pending?: boolean;
 };
 
 const STORAGE_KEY_PREFIX = "meta-koda-chat:";
@@ -71,81 +75,85 @@ export default function PublicChatPage() {
     })();
   }, [slug]);
 
-  // Restore session from localStorage
+  // Restore session from localStorage. Only keep `phone` + `name` — the
+  // message history comes from the server (single source of truth) so two
+  // browsers using the same phone always see the same conversation.
   useEffect(() => {
     if (typeof window === "undefined" || !slug) return;
     const raw = localStorage.getItem(storageKey);
     if (!raw) return;
     try {
-      const data = JSON.parse(raw) as {
-        phone: string;
-        name: string;
-        messages: Msg[];
-      };
-      setPhone(data.phone || "");
-      setName(data.name || "");
-      setMessages(data.messages || []);
-      setRegistered(!!data.phone);
+      const data = JSON.parse(raw) as { phone: string; name: string };
+      if (data.phone) setPhone(data.phone);
+      if (data.name) setName(data.name);
+      if (data.phone) setRegistered(true);
     } catch {
       /* ignore */
     }
   }, [slug, storageKey]);
 
-  // Persist on every change
+  // Persist phone+name (NOT messages — server is source of truth)
   useEffect(() => {
     if (typeof window === "undefined" || !registered || !slug) return;
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({ phone, name, messages }),
-    );
-  }, [registered, phone, name, messages, slug, storageKey]);
+    localStorage.setItem(storageKey, JSON.stringify({ phone, name }));
+  }, [registered, phone, name, slug, storageKey]);
 
-  // Poll the backend for new messages so the customer can receive replies
-  // pushed from outside this chat session (e.g. marketing campaigns sent
-  // by the tenant to all members / non-members). We merge by id so user
-  // messages sent locally aren't duplicated when they show up server-side.
+  // Fetch messages from the server. Replaces the local list with the
+  // server's view, but preserves any still-pending optimistic messages
+  // (the user typed them but the POST hasn't reflected on the server yet).
+  // This single function is reused for the initial load and the 4s poll.
+  const refetchFromServer = async (signal?: AbortSignal): Promise<void> => {
+    if (!slug || !phone) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/demo-chat/${slug}/messages?phone=${encodeURIComponent(phone)}`,
+        { signal },
+      );
+      if (!res.ok) return;
+      const j = (await res.json()) as {
+        messages: { id: string; content: string; sender: string; timestamp: string }[];
+      };
+      setMessages((prev) => {
+        const fromServer: Msg[] = j.messages.map((m) => ({
+          id: m.id,
+          role:
+            m.sender === "customer" ? ("me" as const) : ("bot" as const),
+          text: m.content,
+          ts: new Date(m.timestamp).getTime(),
+        }));
+        // Drop pending optimistic messages whose content already shows on
+        // the server (server is now the canonical record). Anything still
+        // pending and newer than the latest server message stays.
+        const lastServerTs = fromServer.length
+          ? fromServer[fromServer.length - 1].ts
+          : 0;
+        const stillPending = prev.filter(
+          (p) => p.pending && (
+            p.ts > lastServerTs ||
+            !fromServer.some(
+              (s) => s.role === p.role && s.text === p.text,
+            )
+          ),
+        );
+        return [...fromServer, ...stillPending];
+      });
+    } catch {
+      /* silent */
+    }
+  };
+
+  // Poll for new messages every 4s (catches marketing pushes / second-
+  // device traffic / etc.).
   useEffect(() => {
     if (!registered || !slug || !phone) return;
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const res = await fetch(
-          `${API_BASE}/demo-chat/${slug}/messages?phone=${encodeURIComponent(phone)}`,
-        );
-        if (!res.ok || cancelled) return;
-        const j = (await res.json()) as {
-          messages: { id: string; content: string; sender: string; timestamp: string }[];
-        };
-        if (cancelled) return;
-        setMessages((prev) => {
-          // Map server messages to widget shape; preserve any local-only ids
-          // we already have (not strictly needed since backend stores both
-          // sides — but defensive).
-          const serverIds = new Set(j.messages.map((m) => m.id));
-          const localOnly = prev.filter((m) => !serverIds.has(m.id));
-          const fromServer = j.messages.map((m) => ({
-            id: m.id,
-            role:
-              m.sender === "customer" ? ("me" as const) : ("bot" as const),
-            text: m.content,
-            ts: new Date(m.timestamp).getTime(),
-          }));
-          // Sort all together by timestamp ascending
-          const merged = [...fromServer, ...localOnly].sort(
-            (a, b) => a.ts - b.ts,
-          );
-          return merged;
-        });
-      } catch {
-        /* silent — keep polling */
-      }
-    };
-    poll();
-    const t = setInterval(poll, 4000);
+    const ctrl = new AbortController();
+    refetchFromServer(ctrl.signal);
+    const t = setInterval(() => refetchFromServer(ctrl.signal), 4000);
     return () => {
-      cancelled = true;
+      ctrl.abort();
       clearInterval(t);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registered, slug, phone]);
 
   // Scroll to bottom on every new message / typing indicator. Use a
@@ -175,13 +183,17 @@ export default function PublicChatPage() {
   const send = async () => {
     const text = draft.trim();
     if (!text || sending) return;
-    const myMsg: Msg = {
-      id: crypto.randomUUID(),
+    // Optimistic local copy so the user sees their message instantly. Marked
+    // `pending` — `refetchFromServer` will drop it once the server-stored
+    // copy is fetched (preventing the double-message bug).
+    const optimistic: Msg = {
+      id: `pending-${crypto.randomUUID()}`,
       role: "me",
       text,
       ts: Date.now(),
+      pending: true,
     };
-    setMessages((m) => [...m, myMsg]);
+    setMessages((m) => [...m, optimistic]);
     setDraft("");
     setSending(true);
     try {
@@ -193,9 +205,10 @@ export default function PublicChatPage() {
       if (!res.ok) {
         const j = await res.json().catch(() => ({} as { detail?: string }));
         setMessages((m) => [
-          ...m,
+          ...m.filter((x) => x.id !== optimistic.id),
+          optimistic,
           {
-            id: crypto.randomUUID(),
+            id: `error-${crypto.randomUUID()}`,
             role: "bot",
             text: `[error] ${j.detail || `HTTP ${res.status}`}`,
             ts: Date.now(),
@@ -203,21 +216,14 @@ export default function PublicChatPage() {
         ]);
         return;
       }
-      const j = await res.json();
-      setMessages((m) => [
-        ...m,
-        {
-          id: crypto.randomUUID(),
-          role: "bot",
-          text: j.reply || "(no reply)",
-          ts: Date.now(),
-        },
-      ]);
+      // Server now has both the user message AND the bot reply. Refetch and
+      // replace — both will appear, no duplicates.
+      await refetchFromServer();
     } catch {
       setMessages((m) => [
         ...m,
         {
-          id: crypto.randomUUID(),
+          id: `error-${crypto.randomUUID()}`,
           role: "bot",
           text: "[error] Tidak bisa kirim pesan. Coba lagi.",
           ts: Date.now(),
