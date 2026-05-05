@@ -1,0 +1,67 @@
+# =============================
+# Secrets — never commit
+# =============================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# =============================
+# Backend (Python / FastAPI)
+# =============================
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.log
+backend/backend.log
+backend/backend.err.log
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/scripts/create_tenant_oneshot.py
+
+# =============================
+# Frontend (Next.js / Node)
+# =============================
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.turbo/
+frontend/.vercel/
+frontend/tsconfig.tsbuildinfo
+frontend/next-env.d.ts
+
+# =============================
+# OS / IDE
+# =============================
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+!.vscode/settings.json
+
+# =============================
+# Logs / temp
+# =============================
+*.log
+npm-debug.log*
+yarn-debug.log*
+*.tmp
+*.temp
+
+# =============================
+# Test / coverage
+# =============================
+coverage/
+.coverage
+htmlcov/
+
+# =============================
+# Claude / agent state (entirely local — don't ship)
+# =============================
+.claude/
+CLAUDE.md
+AGENTS.md

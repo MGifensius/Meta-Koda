@@ -1,0 +1,41 @@
+# Render.com blueprint — one-click backend deploy.
+# Render dashboard → New → Blueprint → point at this repo.
+# Render reads this file from the root and auto-creates the service.
+services:
+  - type: web
+    name: meta-koda-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
+      # The keys below must be set manually in the Render dashboard
+      # (Settings → Environment) — never committed to git.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_ID
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GOOGLE_FORM_URL
+        sync: false
+      - key: XENDIT_SECRET_KEY
+        sync: false
+      - key: XENDIT_WEBHOOK_TOKEN
+        sync: false
+      - key: XENDIT_CALLBACK_URL
+        sync: false
