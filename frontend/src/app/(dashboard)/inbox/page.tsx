@@ -74,6 +74,11 @@ export default function InboxPage() {
   const markAsRead = useCallback(async (convId: string) => {
     try {
       await apiFetch(`/chat/conversations/${convId}/read`, { method: "POST" });
+      // Tell the sidebar to refetch its badge count immediately rather than
+      // waiting up to 5s for the next poll cycle.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("inbox:read"));
+      }
     } catch (err) {
       console.error(err);
     }

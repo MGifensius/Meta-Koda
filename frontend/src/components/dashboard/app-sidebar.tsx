@@ -66,7 +66,10 @@ export function AppSidebar() {
   const wsItems = workspace.filter((n) => allowed.includes(n.t));
   const growthItems = growth.filter((n) => allowed.includes(n.t));
 
-  // Poll total unread across all conversations for the Inbox badge.
+  // Inbox badge — WhatsApp-style: counts the number of conversations that
+  // have ≥1 unread message, not the total unread message count. Opening a
+  // conversation marks it read on the backend, which removes it from this
+  // count on the next poll (polling every 5s).
   const [unreadInbox, setUnreadInbox] = useState(0);
   useEffect(() => {
     if (!allowed.includes("Inbox")) return;
@@ -77,17 +80,25 @@ export function AppSidebar() {
         if (!res.ok) return;
         const data: { unread_count?: number }[] = await res.json();
         if (cancelled) return;
-        const total = data.reduce((s, c) => s + (c.unread_count || 0), 0);
-        setUnreadInbox(total);
+        const conversationsWithUnread = data.filter(
+          (c) => (c.unread_count ?? 0) > 0,
+        ).length;
+        setUnreadInbox(conversationsWithUnread);
       } catch {
         /* silent */
       }
     };
     fetchUnread();
     const t = setInterval(fetchUnread, 5000);
+    // Inbox page fires this when the user opens a conversation; refetch
+    // immediately so the badge ticks down instantly instead of waiting
+    // for the next interval.
+    const onRead = () => fetchUnread();
+    window.addEventListener("inbox:read", onRead);
     return () => {
       cancelled = true;
       clearInterval(t);
+      window.removeEventListener("inbox:read", onRead);
     };
   }, [allowed]);
 
