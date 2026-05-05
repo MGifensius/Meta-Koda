@@ -48,6 +48,46 @@ async def get_tenant_info(tenant_slug: str):
     }
 
 
+@router.get("/{tenant_slug}/messages")
+async def list_messages(tenant_slug: str, phone: str, limit: int = 50):
+    """Public — return recent messages for a (tenant, phone) pair.
+
+    The chat widget polls this every few seconds so the customer can
+    receive bot replies from background flows (e.g. marketing campaigns
+    that the tenant pushes into the conversation). No auth required —
+    knowing the phone number is the identifier.
+    """
+    db = get_db()
+    trows = db.table("tenants").select("id").eq(
+        "slug", tenant_slug
+    ).limit(1).execute().data
+    if not trows:
+        raise HTTPException(404, "Tenant not found")
+    tid = trows[0]["id"]
+
+    cust = db.table("customers").select("id").eq(
+        "tenant_id", tid
+    ).eq("phone", phone.strip()).limit(1).execute().data
+    if not cust:
+        return {"messages": []}
+    cust_id = cust[0]["id"]
+
+    conv = db.table("conversations").select("id").eq(
+        "tenant_id", tid
+    ).eq("customer_id", cust_id).limit(1).execute().data
+    if not conv:
+        return {"messages": []}
+    conv_id = conv[0]["id"]
+
+    rows = db.table("messages").select(
+        "id, content, sender, timestamp"
+    ).eq("tenant_id", tid).eq(
+        "conversation_id", conv_id
+    ).order("timestamp", desc=False).limit(min(limit, 200)).execute().data or []
+
+    return {"messages": rows}
+
+
 @router.post("/{tenant_slug}/message")
 async def post_message(tenant_slug: str, payload: dict):
     """Process a message from the public chat widget.

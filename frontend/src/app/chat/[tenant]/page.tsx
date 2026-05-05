@@ -100,6 +100,54 @@ export default function PublicChatPage() {
     );
   }, [registered, phone, name, messages, slug, storageKey]);
 
+  // Poll the backend for new messages so the customer can receive replies
+  // pushed from outside this chat session (e.g. marketing campaigns sent
+  // by the tenant to all members / non-members). We merge by id so user
+  // messages sent locally aren't duplicated when they show up server-side.
+  useEffect(() => {
+    if (!registered || !slug || !phone) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/demo-chat/${slug}/messages?phone=${encodeURIComponent(phone)}`,
+        );
+        if (!res.ok || cancelled) return;
+        const j = (await res.json()) as {
+          messages: { id: string; content: string; sender: string; timestamp: string }[];
+        };
+        if (cancelled) return;
+        setMessages((prev) => {
+          // Map server messages to widget shape; preserve any local-only ids
+          // we already have (not strictly needed since backend stores both
+          // sides — but defensive).
+          const serverIds = new Set(j.messages.map((m) => m.id));
+          const localOnly = prev.filter((m) => !serverIds.has(m.id));
+          const fromServer = j.messages.map((m) => ({
+            id: m.id,
+            role:
+              m.sender === "customer" ? ("me" as const) : ("bot" as const),
+            text: m.content,
+            ts: new Date(m.timestamp).getTime(),
+          }));
+          // Sort all together by timestamp ascending
+          const merged = [...fromServer, ...localOnly].sort(
+            (a, b) => a.ts - b.ts,
+          );
+          return merged;
+        });
+      } catch {
+        /* silent — keep polling */
+      }
+    };
+    poll();
+    const t = setInterval(poll, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [registered, slug, phone]);
+
   // Scroll to bottom on every new message / typing indicator. Use a
   // microtask so the DOM has rendered before we measure scrollHeight.
   useEffect(() => {
