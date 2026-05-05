@@ -480,6 +480,24 @@ async def remove_whatsapp_account(
     return {"ok": True}
 
 
+@router.post("/demo/refresh")
+async def refresh_kafe_cendana_demo(
+    _: CurrentUser = Depends(super_admin_only),
+):
+    """Wipe + reseed the Kafé Cendana showcase tenant in one shot.
+
+    Used between demo sessions so the dashboard, inbox, floor, and revenue
+    metrics stay believable for the next viewer. Hardcoded to Kafé Cendana
+    — won't touch Buranchi or any paying tenant.
+    """
+    from app.services.demo_data import refresh_kafe_cendana
+    db = get_db()
+    result = refresh_kafe_cendana(db)
+    if not result.get("ok"):
+        raise HTTPException(500, result.get("error") or "refresh failed")
+    return result
+
+
 @router.get("/tenants/{tenant_id}/subscriptions")
 async def tenant_subscription_history(
     tenant_id: str,

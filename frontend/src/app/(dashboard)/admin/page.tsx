@@ -15,6 +15,7 @@ import {
   MessageCircle,
   CheckCircle2,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/lib/role-context";
 import { apiFetch } from "@/lib/api-client";
@@ -114,6 +115,10 @@ export default function SuperAdminPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Demo refresh — wipe + reseed Kafé Cendana between demo sessions.
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshToast, setRefreshToast] = useState<string | null>(null);
 
   // Create-tenant dialog
   const [createOpen, setCreateOpen] = useState(false);
@@ -418,6 +423,45 @@ export default function SuperAdminPage() {
     }
   };
 
+  const refreshDemo = async () => {
+    if (
+      !confirm(
+        "Reset & re-seed Kafé Cendana?\n\n" +
+          "Ini akan menghapus semua test customer, conversation, booking, " +
+          "revenue transaction, dan loyalty entry untuk Kafé Cendana, lalu " +
+          "isi ulang dengan data demo realistis (33 transaksi 7 hari, 4 " +
+          "booking hari ini, 3 conversation contoh).\n\n" +
+          "Buranchi tidak terpengaruh. Lanjutkan?",
+      )
+    ) {
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const res = await apiFetch("/admin/demo/refresh", { method: "POST" });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({} as { detail?: string }));
+        setRefreshToast(`Failed: ${j.detail || `HTTP ${res.status}`}`);
+        setTimeout(() => setRefreshToast(null), 4000);
+        return;
+      }
+      const j = await res.json();
+      const seed = j.seed || {};
+      setRefreshToast(
+        `Demo refreshed — ${seed.revenue_transactions ?? 0} bills, ` +
+          `${seed.bookings ?? 0} bookings, ${seed.conversations ?? 0} chats`,
+      );
+      setTimeout(() => setRefreshToast(null), 5000);
+      await fetchAll();
+    } catch (err) {
+      console.error(err);
+      setRefreshToast("Network error");
+      setTimeout(() => setRefreshToast(null), 4000);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const cancelTenant = async () => {
     if (!detailTenant) return;
     if (
@@ -475,16 +519,50 @@ export default function SuperAdminPage() {
             {tenants.length} tenant{tenants.length === 1 ? "" : "s"} registered
           </p>
         </div>
-        <Button
-          onClick={() => {
-            resetCreateForm();
-            setCreateOpen(true);
-          }}
-          className="rounded-md h-9 px-3 gap-1.5 text-[13px]"
-        >
-          <Plus className="size-4" /> Add Tenant
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={refreshDemo}
+            disabled={refreshing}
+            title="Reset Kafé Cendana to a fresh demo state"
+            className="rounded-md h-9 px-3 gap-1.5 text-[13px]"
+          >
+            {refreshing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Sparkles className="size-4" />
+            )}
+            {refreshing ? "Refreshing…" : "Refresh Demo"}
+          </Button>
+          <Button
+            onClick={() => {
+              resetCreateForm();
+              setCreateOpen(true);
+            }}
+            className="rounded-md h-9 px-3 gap-1.5 text-[13px]"
+          >
+            <Plus className="size-4" /> Add Tenant
+          </Button>
+        </div>
       </div>
+
+      {/* Demo refresh toast */}
+      {refreshToast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 border rounded-md shadow-lg px-4 py-2.5 text-[13px] inline-flex items-center gap-2 ${
+            refreshToast.startsWith("Failed") || refreshToast.startsWith("Network")
+              ? "border-red-300 bg-red-50 text-red-900"
+              : "border-emerald-300 bg-emerald-50 text-emerald-900"
+          }`}
+        >
+          {refreshToast.startsWith("Failed") || refreshToast.startsWith("Network") ? (
+            <AlertCircle className="size-4" />
+          ) : (
+            <CheckCircle2 className="size-4 text-emerald-700" />
+          )}
+          {refreshToast}
+        </div>
+      )}
 
       {/* Tenant table */}
       <div className="border rounded-xl bg-card overflow-hidden">
