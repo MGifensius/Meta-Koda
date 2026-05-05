@@ -197,7 +197,7 @@ export default function MenuPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Kategori</Label>
-                  <Select value={fCategory} onValueChange={setFCategory}>
+                  <Select value={fCategory} onValueChange={(v) => setFCategory(v ?? "")}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
