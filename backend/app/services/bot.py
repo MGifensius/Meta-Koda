@@ -160,7 +160,192 @@ def _is_confirmation(message: str) -> bool:
     if 0 < len(parts) <= 3:
         if parts[0] in _CONFIRM_TOKENS or parts[-1] in _CONFIRM_TOKENS:
             return True
+    # "iya sudah benar", "oke sudah benar", "ya benar", etc. — confirm
+    # token anywhere within a short message.
+    if 0 < len(parts) <= 4:
+        if any(p in _CONFIRM_TOKENS for p in parts):
+            return True
     return False
+
+
+# ----------------------------------------------------------
+# Deterministic booking parser — for the LLM-failed code path
+# ----------------------------------------------------------
+# When the LLM choked mid-flow on a booking confirmation, we used to
+# reply with a placebo "lagi diproses" message and never actually create
+# the booking. The user expects instant booking on confirm — this set of
+# helpers parses the bot's prior confirmation message and creates the
+# booking directly through the same _tool_create_booking the LLM would
+# have called.
+
+_INDO_MONTHS = {
+    "januari": 1, "februari": 2, "maret": 3, "april": 4, "mei": 5,
+    "juni": 6, "juli": 7, "agustus": 8, "september": 9, "oktober": 10,
+    "november": 11, "desember": 12,
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7,
+    "ags": 8, "agu": 8, "sep": 9, "okt": 10, "nov": 11, "des": 12,
+}
+
+
+def _resolve_date(text: str) -> str:
+    """Normalize 'Besok', 'Lusa', 'Hari ini', '7 Mei 2026', '2026-05-07'
+    to YYYY-MM-DD. Returns '' when nothing parses cleanly."""
+    if not text:
+        return ""
+    t = text.lower().strip()
+    today = datetime.now().date()
+    if "besok" in t or "tomorrow" in t:
+        return (today + timedelta(days=1)).isoformat()
+    if "lusa" in t:
+        return (today + timedelta(days=2)).isoformat()
+    if "hari ini" in t or "today" in t:
+        return today.isoformat()
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", text)
+    if m:
+        return m.group(1)
+    m = re.search(r"(\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?", text)
+    if m:
+        try:
+            day = int(m.group(1))
+            month = _INDO_MONTHS.get(m.group(2).lower())
+            year = int(m.group(3)) if m.group(3) else today.year
+            if month:
+                d = datetime(year, month, day).date()
+                if d < today:
+                    d = datetime(year + 1, month, day).date()
+                return d.isoformat()
+        except (ValueError, IndexError):
+            pass
+    return ""
+
+
+def _parse_confirm_prompt(text: str) -> dict:
+    """Extract booking fields from a bot confirmation message of the
+    "Tanggal: …, Jam: …, Jumlah Orang: …, Area: …, Meja: …" shape."""
+    if not text:
+        return {}
+    fields: dict = {}
+    pairs = [
+        ("date_text", r"Tanggal\s*:\s*(.+?)(?:\n|$)"),
+        ("time", r"Jam\s*:\s*(\d{1,2}[:\.]\d{2})"),
+        ("pax", r"(?:Jumlah\s*Orang|Pax|Orang)\s*:\s*(\d+)"),
+        ("area", r"Area\s*:\s*(.+?)(?:\n|$)"),
+        ("table_id", r"Meja\s*:\s*([\w\-]+)"),
+        ("guest_name", r"Nama\s*:\s*(.+?)(?:\n|$)"),
+        ("notes_alergi", r"(?:Alergi)\s*:\s*(.+?)(?:\n|$)"),
+        ("notes_catatan", r"(?:Catatan|Notes|Permintaan)\s*:\s*(.+?)(?:\n|$)"),
+    ]
+    for key, pattern in pairs:
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m:
+            fields[key] = m.group(1).strip()
+    if "time" in fields:
+        fields["time"] = fields["time"].replace(".", ":")
+    if "pax" in fields:
+        try:
+            fields["pax"] = int(fields["pax"])
+        except (ValueError, TypeError):
+            del fields["pax"]
+    # Merge the various note fields into one string. "Tidak ada"/"-" mean none.
+    notes_parts = []
+    for k in ("notes_alergi", "notes_catatan"):
+        v = fields.pop(k, "")
+        if v and v.lower() not in ("tidak ada", "-", "none", "tidak", "no"):
+            label = "alergi" if k == "notes_alergi" else "catatan"
+            notes_parts.append(f"{label}: {v}")
+    fields["notes"] = "; ".join(notes_parts)
+    return fields
+
+
+def _try_create_booking_from_history(
+    last_bot_message: str,
+    customer_phone: str,
+) -> dict:
+    """Parse the bot's prior confirmation message and create the booking
+    deterministically. Returns {"ok": bool, ...details} so the fallback
+    can give an honest reply instead of a placebo "diproses" message."""
+    if not last_bot_message or not customer_phone:
+        return {"ok": False, "reason": "missing-context"}
+
+    fields = _parse_confirm_prompt(last_bot_message)
+    date = _resolve_date(fields.get("date_text", ""))
+    time_str = fields.get("time", "")
+    pax = fields.get("pax")
+    if not (date and time_str and pax):
+        return {"ok": False, "reason": "incomplete-fields", "fields": fields}
+
+    db = get_db()
+    cust_rows = db.table("customers").select(
+        "id, name"
+    ).eq("tenant_id", _tid()).eq("phone", customer_phone).limit(1).execute().data
+    if not cust_rows:
+        return {"ok": False, "reason": "customer-not-found"}
+    customer_id = cust_rows[0]["id"]
+    guest_name = fields.get("guest_name") or cust_rows[0]["name"] or "Guest"
+
+    # Pick a table — honor an explicit "Meja: TO-1" first, otherwise
+    # find any free table that fits the requested area + pax.
+    table_id = fields.get("table_id", "")
+    if not table_id:
+        area = (fields.get("area") or "").lower()
+        all_tables = db.table("tables").select(
+            "id, capacity, zone, status"
+        ).eq("tenant_id", _tid()).gte("capacity", pax).execute().data or []
+
+        # Bookings already on that slot
+        booked = db.table("bookings").select("table_id").eq(
+            "tenant_id", _tid()
+        ).eq("date", date).eq("time", time_str).in_(
+            "status", ["reserved", "occupied"],
+        ).execute().data or []
+        booked_ids = {b["table_id"] for b in booked}
+
+        def zone_matches(zone_lower: str, area_lower: str) -> bool:
+            if not area_lower:
+                return True
+            if area_lower in zone_lower or zone_lower in area_lower:
+                return True
+            # outdoor synonyms
+            outdoor_zones = ("teras", "pool", "outdoor", "garden")
+            if "outdoor" in area_lower and any(k in zone_lower for k in outdoor_zones):
+                return True
+            if "indoor" in area_lower and not any(k in zone_lower for k in outdoor_zones):
+                return True
+            return False
+
+        for t in sorted(all_tables, key=lambda x: x["capacity"]):
+            if t["id"] in booked_ids:
+                continue
+            if t.get("status") in ("occupied", "cleaning"):
+                continue
+            if zone_matches((t.get("zone") or "").lower(), area):
+                table_id = t["id"]
+                break
+
+    if not table_id:
+        return {"ok": False, "reason": "no-table-available"}
+
+    result = _tool_create_booking(
+        customer_id=customer_id,
+        date=date,
+        time=time_str,
+        pax=pax,
+        table_id=table_id,
+        guest_name=guest_name,
+        notes=fields.get("notes", ""),
+    )
+    if not result.get("success"):
+        return {"ok": False, "reason": "create-failed", "error": result.get("error")}
+
+    return {
+        "ok": True,
+        "booking_id": result.get("booking_id"),
+        "date": date,
+        "time": time_str,
+        "table_id": table_id,
+        "pax": pax,
+        "area": fields.get("area", ""),
+    }
 
 
 def _build_system_prompt(business_name: str) -> str:
@@ -989,26 +1174,43 @@ def _fallback_reply(message: str, customer_name: str = None, is_first_message: b
     has_name = customer_name and not customer_name.startswith("+")
     kak = f"Kak {customer_name}" if has_name else "Kak"
 
-    # --- CONFIRMATION ("mantap" / "sip" / "oke deh") ---
-    # When the LLM bailed mid-flow on a confirmation, returning the generic
-    # menu intro is jarring. If the previous bot turn looks like a confirm
-    # prompt (mentions booking details, "setuju", "benar", "konfirmasi"),
-    # we acknowledge and ask the customer to retry — far better UX.
+    # --- CONFIRMATION ("mantap" / "sip" / "iya benar" / "oke deh") ---
+    # When the LLM bails mid-flow on a booking confirmation, we used to
+    # send a placebo "lagi diproses" reply that lied — no booking was
+    # ever created. Now we parse the bot's prior confirmation message
+    # (Tanggal/Jam/Pax/Area/Meja) and create the booking deterministically
+    # through _tool_create_booking, matching what the LLM was about to do.
     if _is_confirmation(message):
-        last_bot = ""
+        last_bot_raw = ""
         if history:
             for h in reversed(history):
                 if h.get("sender") in ("bot", "assistant"):
-                    last_bot = (h.get("content") or "").lower()
+                    last_bot_raw = h.get("content") or ""
                     break
+        last_bot = last_bot_raw.lower()
         looks_like_confirm_prompt = any(
             k in last_bot
-            for k in ("setuju", "benar", "konfirmasi", "apakah", "deal", "booking")
+            for k in ("setuju", "benar", "konfirmasi", "apakah", "tanggal", "meja")
         )
-        if looks_like_confirm_prompt:
+        if looks_like_confirm_prompt and customer_phone:
+            booking = _try_create_booking_from_history(last_bot_raw, customer_phone)
+            if booking.get("ok"):
+                area_line = (
+                    f"\n- Area: {booking['area']}" if booking.get("area") else ""
+                )
+                return _strip_markdown(
+                    f"Done {kak}! Reservasi sudah dibuat ✅\n"
+                    f"- Tanggal: {booking['date']}\n"
+                    f"- Jam: {booking['time']}\n"
+                    f"- Meja: {booking['table_id']}\n"
+                    f"- Jumlah Orang: {booking['pax']}"
+                    f"{area_line}\n\n"
+                    f"Sampai ketemu nanti ya 😊"
+                )
+            # Honest error — don't pretend it worked
             return _strip_markdown(
-                f"Sip {kak}! Aku lagi proses reservasinya ya, mohon tunggu sebentar 🙏 "
-                f"Kalau dalam 1 menit belum ada konfirmasi, balas 'cek booking' ya."
+                f"Maaf {kak}, ada gangguan kecil pas mau buat reservasinya 🙏 "
+                f"Bisa coba ketik ulang detailnya? (tanggal, jam, jumlah orang, area)"
             )
         return _strip_markdown(
             f"Sip {kak}! 😊 Ada yang lain yang bisa dibantu? Mau booking, lihat menu, atau cek poin?"
