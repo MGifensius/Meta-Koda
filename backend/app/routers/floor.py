@@ -53,6 +53,119 @@ async def list_tables(user: CurrentUser = Depends(require_tenant)):
 
 
 # ----------------------------------------------------------
+# Table management (settings — owner-only edits)
+# ----------------------------------------------------------
+@router.patch("/tables/{table_id}")
+async def update_table(
+    table_id: str,
+    payload: dict,
+    user: CurrentUser = Depends(require_tenant),
+):
+    """Update a table's capacity or zone label. Only `capacity` and `zone`
+    are accepted; status / current_booking_id are managed by the floor
+    operation flow, not by direct edits."""
+    if user.role not in ("tenant_owner", "super_admin"):
+        raise HTTPException(403, "Only owners can edit tables")
+    allowed = {}
+    if "capacity" in payload:
+        try:
+            cap = int(payload["capacity"])
+        except (TypeError, ValueError):
+            raise HTTPException(422, "capacity must be an integer")
+        if cap < 1 or cap > 50:
+            raise HTTPException(422, "capacity must be between 1 and 50")
+        allowed["capacity"] = cap
+    if "zone" in payload:
+        zone = (payload["zone"] or "").strip()
+        if not zone or len(zone) > 60:
+            raise HTTPException(422, "zone must be 1–60 characters")
+        allowed["zone"] = zone
+    if not allowed:
+        raise HTTPException(422, "Nothing to update — pass capacity or zone")
+
+    db = get_db()
+    res = db.table("tables").update(allowed).eq(
+        "id", table_id
+    ).eq("tenant_id", user.tenant_id).execute()
+    if not res.data:
+        raise HTTPException(404, f"Table {table_id} not found")
+    return res.data[0]
+
+
+@router.post("/tables", status_code=201)
+async def create_table(
+    payload: dict,
+    user: CurrentUser = Depends(require_tenant),
+):
+    """Add a new table. `id` must be unique per tenant — typically a short
+    code like `TO-7` or `IL-8`."""
+    if user.role not in ("tenant_owner", "super_admin"):
+        raise HTTPException(403, "Only owners can create tables")
+    table_id = (payload.get("id") or "").strip()
+    if not table_id or len(table_id) > 20:
+        raise HTTPException(422, "id required (1–20 chars)")
+    try:
+        capacity = int(payload.get("capacity", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "capacity must be an integer")
+    if capacity < 1 or capacity > 50:
+        raise HTTPException(422, "capacity must be between 1 and 50")
+    zone = (payload.get("zone") or "").strip() or "Main"
+
+    db = get_db()
+    existing = db.table("tables").select("id").eq(
+        "tenant_id", user.tenant_id
+    ).eq("id", table_id).execute().data
+    if existing:
+        raise HTTPException(409, f"Table {table_id} already exists")
+
+    res = db.table("tables").insert({
+        "id": table_id,
+        "capacity": capacity,
+        "zone": zone,
+        "status": "available",
+        "tenant_id": user.tenant_id,
+    }).execute()
+    return res.data[0]
+
+
+@router.delete("/tables/{table_id}")
+async def delete_table(
+    table_id: str,
+    user: CurrentUser = Depends(require_tenant),
+):
+    """Remove a table. Refuses if the table is currently occupied or has
+    any future bookings — clean those up first."""
+    if user.role not in ("tenant_owner", "super_admin"):
+        raise HTTPException(403, "Only owners can delete tables")
+    db = get_db()
+    rows = db.table("tables").select("status").eq(
+        "tenant_id", user.tenant_id
+    ).eq("id", table_id).execute().data
+    if not rows:
+        raise HTTPException(404, f"Table {table_id} not found")
+    if rows[0]["status"] == "occupied":
+        raise HTTPException(
+            409, f"Table {table_id} is occupied. Settle the bill before deleting.",
+        )
+    today = datetime.now(timezone.utc).date().isoformat()
+    future = db.table("bookings").select("id").eq(
+        "tenant_id", user.tenant_id
+    ).eq("table_id", table_id).gte("date", today).in_(
+        "status", ["reserved", "occupied"],
+    ).limit(1).execute().data
+    if future:
+        raise HTTPException(
+            409,
+            f"Table {table_id} has upcoming bookings — cancel them first.",
+        )
+    db.table("tables").delete().eq("id", table_id).eq(
+        "tenant_id", user.tenant_id
+    ).execute()
+    return {"ok": True}
+
+
+# ----------------------------------------------------------
 # Customer phone lookup (for the settle modal)
 # ----------------------------------------------------------
 @router.get("/customers/lookup")

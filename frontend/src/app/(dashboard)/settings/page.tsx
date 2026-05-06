@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
+import { TablesTab } from "@/components/settings/tables-tab";
 
 type Settings = {
   name: string;
@@ -189,11 +190,17 @@ export default function SettingsPage() {
       <Tabs value={tab} onValueChange={(v) => setTab(v ?? "umum")}>
         <TabsList>
           <TabsTrigger value="umum">Umum</TabsTrigger>
+          <TabsTrigger value="meja">Meja</TabsTrigger>
           <TabsTrigger value="loyalty">Loyalty</TabsTrigger>
           <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="bot">AI Bot</TabsTrigger>
           <TabsTrigger value="notifikasi">Notifikasi</TabsTrigger>
         </TabsList>
+
+        {/* Meja */}
+        <TabsContent value="meja">
+          <TablesTab />
+        </TabsContent>
 
         {/* Umum */}
         <TabsContent value="umum">

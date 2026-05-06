@@ -26,8 +26,6 @@ import {
 } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api-client";
 import { formatCurrency, tableStatusColor } from "@/lib/format";
-import { hasFloorLayout } from "@/lib/buranchi-floor-layout";
-import { FloorPlanZone } from "@/components/floor/floor-plan-zone";
 
 type TableStatus = "available" | "reserved" | "occupied" | "cleaning";
 
@@ -321,50 +319,39 @@ export default function FloorOperationPage() {
         </div>
       )}
 
-      {/* Floor plan grouped by zone — visual SVG layout for Buranchi
-          zones (Teras Otella, Poolside, Indoor Otella), grouped grid
-          fallback for any other tenant or new zone. */}
+      {/* Floor plan grouped by zone — clean grid; configurable in Settings → Tables. */}
       {Object.entries(grouped).length === 0 ? (
         <div className="border rounded-xl bg-card p-8 text-center text-muted-foreground">
-          No tables configured yet.
+          No tables configured yet. Add some in Settings → Tables.
         </div>
       ) : (
-        Object.entries(grouped).map(([zone, list]) =>
-          hasFloorLayout(zone) ? (
-            <FloorPlanZone
-              key={zone}
-              zone={zone}
-              tables={list}
-              onTableClick={openTable}
-            />
-          ) : (
-            <div key={zone} className="border rounded-xl bg-card p-4">
-              <div className="text-[11px] font-mono-label uppercase tracking-wider ink-3 mb-3">
-                {zone}
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                {list.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => openTable(t)}
-                    className={`text-left border-2 rounded-lg p-3 transition-all hover:shadow-sm ${tableStatusColor(t.status)}`}
-                  >
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-[16px] font-semibold">T{t.id}</span>
-                      <span className="text-[11px] font-mono-label uppercase tracking-wide">
-                        {t.status}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[11px] opacity-80">
-                      {t.capacity} seats
-                    </div>
-                  </button>
-                ))}
-              </div>
+        Object.entries(grouped).map(([zone, list]) => (
+          <div key={zone} className="border rounded-xl bg-card p-4">
+            <div className="text-[11px] font-mono-label uppercase tracking-wider ink-3 mb-3">
+              {zone}{" "}
+              <span className="ml-2 normal-case tracking-normal text-muted-foreground">
+                {list.length} {list.length === 1 ? "meja" : "meja"}
+              </span>
             </div>
-          ),
-        )
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
+              {list.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => openTable(t)}
+                  className={`text-left border-2 rounded-lg px-2.5 py-2 transition-all hover:shadow-sm ${tableStatusColor(t.status)}`}
+                >
+                  <div className="text-[15px] font-semibold leading-tight">
+                    {t.id}
+                  </div>
+                  <div className="mt-0.5 text-[11px] opacity-80">
+                    {t.capacity} pax
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))
       )}
 
       {/* Floating success toast */}
