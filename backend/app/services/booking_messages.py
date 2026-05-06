@@ -57,18 +57,24 @@ def build_confirmation(booking: dict, tenant_name: str) -> str:
 
 
 def build_reminder(booking: dict, tenant_name: str) -> str:
-    """H-1 hour final ping."""
+    """H-30m final ping. Customer is asked to confirm attendance —
+    response handler will release the table on a 'no' or hold it on 'ya'."""
     name = _greet_name(booking)
+    table_line = (
+        f"Meja {booking['table_id']} udah disiapin buat kamu 🍽️\n\n"
+        if booking.get("table_id")
+        else ""
+    )
     return (
         f"Hai {name}! ⏰\n\n"
-        f"Reservasi kamu di *{tenant_name}* sebentar lagi nih, "
+        f"Reservasi kamu di *{tenant_name}* tinggal 30 menit lagi nih, "
         f"jam {booking['time']}.\n"
-        + (
-            f"Meja {booking['table_id']} udah disiapin buat kamu! 🍽️\n\n"
-            if booking.get("table_id")
-            else "Sampai ketemu sebentar lagi! 🍽️\n\n"
-        )
-        + "Sampai ketemu! 😊"
+        + table_line
+        + "Mohon balas:\n"
+        + "  *YA* — kalau jadi datang\n"
+        + "  *BATAL* — kalau ga jadi datang\n\n"
+        + "Kalau ga ada balasan, mejanya akan kami release otomatis 15 menit "
+        + "setelah jam reservasi. Terima kasih 🙏"
     )
 
 

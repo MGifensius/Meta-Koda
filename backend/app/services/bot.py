@@ -458,6 +458,11 @@ RULES:
 - Jika jumlah tamu melebihi kapasitas meja terbesar, informasikan kapasitas meja yang tersedia dan sarankan untuk menyesuaikan jumlah tamu.
 - Jika customer menyebutkan alergi, preferensi makanan, atau request khusus (misalnya "alergi kacang", "vegetarian", "high chair"), catat di notes saat create_booking. Jawab dengan sopan bahwa request akan dicatat.
 - TANGGAL: Gunakan [TODAY] dan [TOMORROW] dari context. Jika customer bilang "tanggal 20" tanpa tahun, SELALU gunakan bulan dan tahun yang terdekat dari hari ini. JANGAN tanyakan tahun.
+- INGAT DETAIL: Customer sering nyebut detail booking secara bertahap di beberapa pesan. Kalau customer udah pernah nyebut tanggal, jam, jumlah orang, area, atau alergi DI MANAPUN dalam history percakapan ini — JANGAN tanya ulang. Selalu scan SEMUA pesan customer sebelumnya sebelum tanya. Contoh:
+  • Customer turn 1: "buat besok ya jam 7 malam"
+  • Customer turn 2: "4 orang"
+  • Bot turn 3 (SALAH): "jam berapa ya Kak?" — karena udah dijawab di turn 1.
+  • Bot turn 3 (BENAR): langsung lanjut ke konfirmasi area dengan data yang udah ada (tanggal=besok, jam=19:00, pax=4).
 - JAM OPERASIONAL (SUMBER KEBENARAN: closing time):
   • Last order = closing − 30 menit (otomatis).
   • Reservasi terakhir = closing − 60 menit (= 1 jam sebelum tutup, otomatis).
@@ -1077,10 +1082,15 @@ async def generate_reply(customer_phone: str, message: str,
     biz_name = settings.get("name") or "Restoran"
     system_prompt = _build_system_prompt(biz_name) + settings_context + customer_context
 
-    # Build OpenAI messages — last 6 messages of history
+    # Build OpenAI messages — last 14 messages of history. The bot used
+    # to forget facts the customer stated 4-5 turns ago (e.g. "jam 7
+    # malam" said early in the booking flow, then asked again later)
+    # because the 6-message window dropped them. 14 is enough to hold
+    # the typical booking arc (greeting → date/time → pax → area →
+    # notes → confirm → 1-2 follow-ups) without ballooning prompt cost.
     messages = [{"role": "system", "content": system_prompt}]
     if context:
-        for msg in context[-6:]:
+        for msg in context[-14:]:
             role = "user" if msg["sender"] == "customer" else "assistant"
             messages.append({"role": role, "content": msg["content"]})
 
