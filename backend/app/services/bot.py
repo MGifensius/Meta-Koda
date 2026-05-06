@@ -13,6 +13,8 @@ Capabilities via function calling:
 
 import contextvars
 import json
+import re
+import traceback
 from datetime import datetime, timedelta
 
 import httpx
@@ -43,6 +45,73 @@ def _tid() -> str:
     return _tenant_ctx.get() or _FALLBACK_TENANT
 
 
+# ----------------------------------------------------------
+# Markdown stripping — defensive post-process
+# ----------------------------------------------------------
+# gpt-4o-mini occasionally ignores the "no markdown" prompt rule and emits
+# **bold** or *italic* in replies. The chat widget renders plain text, so
+# the user sees literal asterisks. We strip emphasis markers from every
+# outgoing message regardless of where the text came from (LLM, tool
+# follow-up, fallback).
+
+# **bold**, __bold__ — drop the markers, keep content
+_BOLD_RE = re.compile(r"\*\*([^*\n]+?)\*\*")
+_BOLD_UNDERSCORE_RE = re.compile(r"__([^_\n]+?)__")
+# *italic*, _italic_ — only when NOT used as a bullet (must be followed by
+# a non-space char and surrounded by word context)
+_ITAL_STAR_RE = re.compile(r"(?<![\w*])\*([^\s*][^*\n]*?[^\s*])\*(?![\w*])")
+_ITAL_UNDER_RE = re.compile(r"(?<![\w_])_([^\s_][^_\n]*?[^\s_])_(?![\w_])")
+
+
+def _strip_markdown(text: str | None) -> str:
+    """Remove markdown emphasis markers from bot replies.
+
+    Cleans **bold**, __bold__, *italic*, _italic_. Leaves bullet hyphens,
+    list numbers, emojis, and stand-alone asterisks (e.g. footnotes)
+    untouched. Headings (`#`) on dedicated lines are also stripped since
+    WhatsApp renders them as literal hashes.
+    """
+    if not text:
+        return text or ""
+    out = _BOLD_RE.sub(r"\1", text)
+    out = _BOLD_UNDERSCORE_RE.sub(r"\1", out)
+    out = _ITAL_STAR_RE.sub(r"\1", out)
+    out = _ITAL_UNDER_RE.sub(r"\1", out)
+    # Sweep up orphan ** that survived an unbalanced pair
+    out = out.replace("**", "")
+    # Strip leading "# ", "## ", "### " on lines (markdown headings)
+    out = re.sub(r"(?m)^\s*#{1,6}\s+", "", out)
+    return out
+
+
+# Confirmation words — used by both the LLM prompt (string-form) and the
+# safety-net fallback below to map "mantap"/"sip"/"oke deh" → "yes intent".
+_CONFIRM_TOKENS = {
+    "ya", "iya", "yaa", "oke", "okeoke", "okay", "okey", "ok", "sip",
+    "sippp", "siap", "deal", "fix", "noted", "boleh", "bisa", "sabi",
+    "gas", "gaspol", "kuy", "yuk", "ayuk", "ayo", "setuju", "mantap",
+    "mantul", "mantab", "betul", "bener", "yoi", "yes", "yup", "yeah",
+    "yaudah", "yowes", "lanjut",
+}
+
+
+def _is_confirmation(message: str) -> bool:
+    """Detect when a customer reply is essentially 'yes/agreed' so we can
+    keep them out of the generic-menu fallback when the LLM choked."""
+    if not message:
+        return False
+    cleaned = re.sub(r"[^\w\s]", "", message.lower()).strip()
+    if cleaned in _CONFIRM_TOKENS:
+        return True
+    # "oke deh", "oke kak", "hm sip", "hmm oke" etc. — first or last word
+    # is a confirm token and the whole message is short.
+    parts = cleaned.split()
+    if 0 < len(parts) <= 3:
+        if parts[0] in _CONFIRM_TOKENS or parts[-1] in _CONFIRM_TOKENS:
+            return True
+    return False
+
+
 def _build_system_prompt(business_name: str) -> str:
     """Substitute the tenant's business name into every {BIZ} placeholder
     in the system prompt template. Bot will then introduce itself as
@@ -60,23 +129,29 @@ Bentuk pertanyaan natural: "boleh tahu nama Kakak?", "panggil Kakak siapa ya?", 
 JANGAN skip pertanyaan ini jika NEEDS_NAME=true. JANGAN sapa generik "Halo Kak!" saja tanpa ajakan menyebutkan nama.
 
 GAYA BAHASA:
-- Bahasa Indonesia semi-formal, hangat, ramah, dan ekspresif — seperti host restoran yang ramah, bukan mesin customer service.
-- Panggil customer dengan "Kak" + nama mereka jika sudah diketahui.
-- JANGAN gunakan bahasa slang dalam balasan (jangan pakai: "gaspol", "sabi", "mantul", "gas", "kuy", "bet", dll).
-- Kamu HARUS MEMAHAMI slang yang digunakan customer, tapi BALAS dengan bahasa yang sopan dan jelas.
-- Slang yang harus dipahami: "mager"=malas gerak, "gaspol"/"gas"=ayo, "mantul"=mantap, "gue/gw"=saya, "lo/lu"=kamu, "ntar"=nanti, "otw"=on the way, "sabi"=bisa, "kuy"=yuk, "nongki"=nongkrong, "bokek"=tidak punya uang, "gacor"=ramai/bagus, "vibe"=suasana.
-- Sopan meskipun customer pakai bahasa kasar.
-- Informatif: kalau menolak atau mengusulkan opsi, selalu sertakan alasan singkat dan langkah berikut yang jelas.
-- Panjang: 2–4 kalimat. Emoji boleh 1, maksimal 2 — untuk menambah kehangatan, bukan pengganti kata.
+- Bahasa Indonesia semi-formal, hangat, ramah, dan ekspresif — seperti host restoran yang welcoming, bukan robot customer service.
+- Sapa customer dengan "Kak" + nama (kalau sudah diketahui). Gunakan kata sapaan yang menyenangkan: "Halo", "Hai", "Selamat datang", "Senang dengar dari Kak".
+- Empati dulu sebelum solusi: kalau customer bingung/ragu, akui dulu ("Wajar Kak…", "Aku ngerti…") sebelum kasih jawaban.
+- Konfirmasi yang ditangkap: ulang ringkas apa yang customer sampaikan ("Oke, jadi besok jam 7 untuk 3 orang ya Kak — bener?") — supaya customer merasa didengar.
+- BAHASA OUTPUT: Sopan dan ringan. JANGAN pakai slang kasar/gaul dalam BALASAN (jangan output: "gaspol", "mantul", "bet", "anjir", "wkwk berlebihan"). Tetap clean.
+- TAPI HARUS MEMAHAMI 100% slang & gaya bahasa modern customer Indonesia, dan respons natural seolah-olah ngerti vibes-nya.
+- KAMUS SLANG (kamu HARUS recognize, treat sebagai equivalent kata standar):
+  • Konfirmasi/setuju: "mantap", "mantul", "mantab", "sip", "sippp", "siap", "oke", "okeoke", "okesip", "oke deh", "oke kak", "deal", "fix", "noted", "yoi", "yo", "boleh", "boleh juga", "bisa", "sabi", "gas", "gaspol", "kuy", "yuk", "ayuk", "ayo", "setuju", "betul", "bener", "yes", "yup", "yeah", "hm oke", "hmm sip".
+  • Penolakan/skip: "nggak", "gak", "engga", "enggak", "nope", "skip", "ga jadi", "cancel", "batal", "ga deh".
+  • Pronoun: "gue/gw" = saya, "lo/lu" = kamu, "ku/aku" = saya.
+  • Waktu: "ntar"=nanti, "bsk"=besok, "pgi"=pagi, "mlm"=malam, "skrg"=sekarang, "otw"=on the way.
+  • Aktivitas: "nongki"=nongkrong, "mager"=malas gerak, "gacor"=ramai/bagus, "vibe"=suasana, "kepo"=ingin tahu.
+  • Kondisi: "bokek"=tidak punya uang, "santuy"=santai, "gercep"=gerak cepat.
+- Sopan walau customer pakai bahasa kasar atau singkat banget.
+- Informatif: kalau menolak/mengusulkan opsi, sertakan alasan singkat + langkah berikutnya yang jelas.
+- Panjang: 2–4 kalimat. Emoji boleh 1, maksimal 2 — untuk kehangatan, bukan pengganti kata.
 
 FORMAT BALASAN:
-- Tulis seperti mengobrol di WhatsApp. Pakai prosa yang mengalir, bukan format brosur/formulir.
-- ⚠️ JANGAN PAKAI MARKDOWN APAPUN. Tulis nama menu, area, atau highlight tanpa simbol `**`, `*`, `_`, atau `#`. Contoh:
-  • Salah: "Mau di **Indoor** atau **Outdoor**?"
-  • Salah: "Tersedia **Mie Aceh** dengan harga *Rp 62.000*"
-  • Benar: "Mau di Indoor atau Outdoor?"
-  • Benar: "Tersedia Mie Aceh dengan harga Rp 62.000"
-  Customer view-nya plain text — `**bold**` muncul sebagai literal bintang dan terlihat aneh.
+- Tulis seperti mengobrol di WhatsApp. Prosa yang mengalir, BUKAN format brosur/formulir.
+- ⚠️⚠️⚠️ DILARANG KERAS PAKAI MARKDOWN: JANGAN gunakan `**`, `*`, `_`, `__`, `#`, atau backtick di output mana pun. Customer melihat plain text — markdown berubah jadi literal asterisks dan terlihat sangat tidak profesional. Ini ATURAN MUTLAK.
+  • SALAH: "Mau di **Indoor** atau **Outdoor**?" / "Tersedia **Mie Aceh** dengan harga *Rp 62.000*" / "**Appetizer:** Crispy Skin"
+  • BENAR: "Mau di Indoor atau Outdoor?" / "Tersedia Mie Aceh dengan harga Rp 62.000" / "Appetizer: Crispy Skin"
+- Untuk emphasis (penekanan), pakai pilihan kata atau urutan kalimat — JANGAN pakai bold/italic.
 - Hindari daftar bullet ("- ...") atau numbered list ("1. ...") untuk greeting, pertanyaan, atau penolakan. Sebutkan opsi dalam kalimat (contoh: "mau jam 19:00, 19:30, atau 20:00?").
 - Pengecualian — list diperbolehkan hanya untuk:
   (a) konfirmasi detail booking yang final (Meja, Tanggal, Jam, Jumlah Orang, Catatan),
@@ -136,7 +211,10 @@ RULES:
   • JANGAN pakai frasa kaku/formal seperti "Apakah nama Kakak yang akan dicatat untuk reservasi ini?", "Mohon informasi nama lengkap untuk keperluan reservasi", atau kalimat tanya tidak langsung semacamnya. Terdengar seperti formulir.
 - PENTING NAMA: Ketika customer memberikan nama mereka (contoh: "Joshua", "nama saya Marchelino", "saya Budi", "atas nama Marchel"), SEGERA panggil tool `update_customer_name` untuk menyimpan nama tersebut ke database. Setelah itu baru lanjutkan percakapan dengan menyapa mereka pakai nama.
 - Jika customer sudah memberikan SEMUA detail booking (tanggal, jam, jumlah orang, nama, area duduk, dan notes/permintaan khusus atau eksplisit "tidak ada notes"), langsung lanjut ke step konfirmasi (step f). Jika ada yang kurang — terutama area duduk atau notes — TANYAKAN dulu sebelum confirm.
-- PENTING: Customer bilang "oke"/"ya"/"boleh"/"setuju"/"deal"/"gas"/"sip" memicu `create_booking` HANYA setelah confirmation message (step f) yang berisi semua detail dengan area + notes sudah dikirim. Jangan langsung create_booking kalau belum konfirmasi area duduk + notes.
+- PENTING: SEMUA kata konfirmasi setelah pesan konfirmasi (step f) memicu `create_booking` SEGERA. Daftar trigger (case-insensitive, anggap semua = "ya"):
+  "ya", "iya", "yaa", "oke", "okeoke", "okay", "okey", "ok", "sip", "sippp", "siap", "deal", "fix", "noted", "boleh", "bisa", "sabi", "gas", "gaspol", "kuy", "yuk", "ayuk", "ayo", "setuju", "mantap", "mantul", "mantab", "betul", "bener", "yoi", "yes", "yup", "yeah", "hm oke", "hmm sip", "oke deh", "oke kak", "yaudah", "yowes", "lanjut".
+  Kalau confirmation message (step f) sudah dikirim dan customer balas dengan SALAH SATU di atas → langsung panggil `create_booking`. JANGAN balas dengan greeting baru atau menu. JANGAN tanya ulang.
+- Tapi jika confirmation message BELUM dikirim (mis. masih ada area atau notes yang belum dikonfirmasi), JANGAN langsung create_booking — tanyakan dulu yang kurang.
 - Jika jumlah tamu melebihi kapasitas meja terbesar, informasikan kapasitas meja yang tersedia dan sarankan untuk menyesuaikan jumlah tamu.
 - Jika customer menyebutkan alergi, preferensi makanan, atau request khusus (misalnya "alergi kacang", "vegetarian", "high chair"), catat di notes saat create_booking. Jawab dengan sopan bahwa request akan dicatat.
 - TANGGAL: Gunakan [TODAY] dan [TOMORROW] dari context. Jika customer bilang "tanggal 20" tanpa tahun, SELALU gunakan bulan dan tahun yang terdekat dari hari ini. JANGAN tanyakan tahun.
@@ -737,7 +815,7 @@ async def generate_reply(customer_phone: str, message: str,
 
             # If no tool calls, return the text response
             if not msg.tool_calls:
-                return msg.content or "Maaf Kak, coba lagi ya 🙏"
+                return _strip_markdown(msg.content) or "Maaf Kak, coba lagi ya 🙏"
 
             # Process tool calls
             messages.append({
@@ -771,8 +849,16 @@ async def generate_reply(customer_phone: str, message: str,
 
         return "Maaf Kak, ada gangguan teknis. Coba lagi ya 🙏"
     except Exception as e:
-        print(f"[OpenAI] Exception: {e}")
-        return _fallback_reply(message, customer_name=customer_name, is_first_message=is_first_message, customer_phone=customer_phone)
+        # Full traceback so we can root-cause why the LLM path bailed.
+        # Without this we just see the symptom (generic-menu fallback).
+        print(f"[OpenAI] Exception: {e}\n{traceback.format_exc()}")
+        return _fallback_reply(
+            message,
+            customer_name=customer_name,
+            is_first_message=is_first_message,
+            customer_phone=customer_phone,
+            history=context,
+        )
 
 
 def _get_restaurant_settings():
@@ -800,7 +886,7 @@ def _get_restaurant_settings():
 
 
 def _fallback_reply(message: str, customer_name: str = None, is_first_message: bool = False,
-                     customer_phone: str = None) -> str:
+                     customer_phone: str = None, history: list[dict] | None = None) -> str:
     """Keyword-based fallback — all responses pulled from database."""
     from app.db import get_db
     msg = message.lower()
@@ -810,6 +896,31 @@ def _fallback_reply(message: str, customer_name: str = None, is_first_message: b
     # Helper: name prefix
     has_name = customer_name and not customer_name.startswith("+")
     kak = f"Kak {customer_name}" if has_name else "Kak"
+
+    # --- CONFIRMATION ("mantap" / "sip" / "oke deh") ---
+    # When the LLM bailed mid-flow on a confirmation, returning the generic
+    # menu intro is jarring. If the previous bot turn looks like a confirm
+    # prompt (mentions booking details, "setuju", "benar", "konfirmasi"),
+    # we acknowledge and ask the customer to retry — far better UX.
+    if _is_confirmation(message):
+        last_bot = ""
+        if history:
+            for h in reversed(history):
+                if h.get("sender") in ("bot", "assistant"):
+                    last_bot = (h.get("content") or "").lower()
+                    break
+        looks_like_confirm_prompt = any(
+            k in last_bot
+            for k in ("setuju", "benar", "konfirmasi", "apakah", "deal", "booking")
+        )
+        if looks_like_confirm_prompt:
+            return _strip_markdown(
+                f"Sip {kak}! Aku lagi proses reservasinya ya, mohon tunggu sebentar 🙏 "
+                f"Kalau dalam 1 menit belum ada konfirmasi, balas 'cek booking' ya."
+            )
+        return _strip_markdown(
+            f"Sip {kak}! 😊 Ada yang lain yang bisa dibantu? Mau booking, lihat menu, atau cek poin?"
+        )
 
     # Check if this message looks like a name response (very strict)
     words = message.strip().split()
@@ -1161,6 +1272,10 @@ async def handle_incoming_message(
         customer_name=customer_name,
         is_first_message=is_new_customer,
     )
+    # Belt-and-suspenders: strip any markdown that slipped through (the
+    # LLM occasionally ignores the prompt rule and inserts **bold** or
+    # leading "# " headings even though we forbid them).
+    reply = _strip_markdown(reply)
 
     # Safety net: if customer still has no real name and the model forgot to ask,
     # append the name question so we never miss it.
