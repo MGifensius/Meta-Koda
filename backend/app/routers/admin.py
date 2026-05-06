@@ -491,10 +491,21 @@ async def refresh_demo_tenant_endpoint(
     hardcoded in `app.services.demo_data.DEMO_TENANT_NAME` ("Buranchi")
     — won't touch any paying tenant.
     """
+    import traceback
     from app.services.demo_data import refresh_demo_tenant
     db = get_db()
-    result = refresh_demo_tenant(db)
+    try:
+        result = refresh_demo_tenant(db)
+    except Exception as exc:
+        # Print the full traceback to the HF logs so the next 500 surfaces
+        # the actual SQL / FK / CHECK violation instead of a bare HTTP 500.
+        print(
+            f"[demo_refresh] crashed: {exc!r}\n{traceback.format_exc()}",
+            flush=True,
+        )
+        raise HTTPException(500, f"refresh crashed: {exc}") from exc
     if not result.get("ok"):
+        print(f"[demo_refresh] returned error: {result}", flush=True)
         raise HTTPException(500, result.get("error") or "refresh failed")
     return result
 
