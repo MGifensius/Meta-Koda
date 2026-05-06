@@ -481,18 +481,19 @@ async def remove_whatsapp_account(
 
 
 @router.post("/demo/refresh")
-async def refresh_kafe_cendana_demo(
+async def refresh_demo_tenant_endpoint(
     _: CurrentUser = Depends(super_admin_only),
 ):
-    """Wipe + reseed the Kafé Cendana showcase tenant in one shot.
+    """Wipe + reseed the demo showcase tenant (Buranchi) in one shot.
 
-    Used between demo sessions so the dashboard, inbox, floor, and revenue
-    metrics stay believable for the next viewer. Hardcoded to Kafé Cendana
-    — won't touch Buranchi or any paying tenant.
+    Used between demo sessions so dashboard, inbox, floor, and revenue
+    metrics stay believable for the next viewer. The target tenant is
+    hardcoded in `app.services.demo_data.DEMO_TENANT_NAME` ("Buranchi")
+    — won't touch any paying tenant.
     """
-    from app.services.demo_data import refresh_kafe_cendana
+    from app.services.demo_data import refresh_demo_tenant
     db = get_db()
-    result = refresh_kafe_cendana(db)
+    result = refresh_demo_tenant(db)
     if not result.get("ok"):
         raise HTTPException(500, result.get("error") or "refresh failed")
     return result

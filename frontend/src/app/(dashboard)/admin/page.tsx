@@ -116,7 +116,8 @@ export default function SuperAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Demo refresh — wipe + reseed Kafé Cendana between demo sessions.
+  // Demo refresh — wipe + reseed Buranchi (the demo showcase tenant)
+  // between demo sessions so dashboard/inbox/floor numbers stay believable.
   const [refreshing, setRefreshing] = useState(false);
   const [refreshToast, setRefreshToast] = useState<string | null>(null);
 
@@ -426,12 +427,12 @@ export default function SuperAdminPage() {
   const refreshDemo = async () => {
     if (
       !confirm(
-        "Reset & re-seed Kafé Cendana?\n\n" +
+        "Reset & re-seed Buranchi (demo tenant)?\n\n" +
           "Ini akan menghapus semua test customer, conversation, booking, " +
-          "revenue transaction, dan loyalty entry untuk Kafé Cendana, lalu " +
-          "isi ulang dengan data demo realistis (33 transaksi 7 hari, 4 " +
-          "booking hari ini, 3 conversation contoh).\n\n" +
-          "Buranchi tidak terpengaruh. Lanjutkan?",
+          "revenue transaction, dan loyalty entry untuk Buranchi, lalu " +
+          "isi ulang dengan data demo realistis (transaksi 7 hari, " +
+          "booking hari ini, conversation contoh).\n\n" +
+          "Tenant lain tidak terpengaruh. Lanjutkan?",
       )
     ) {
       return;
@@ -524,7 +525,7 @@ export default function SuperAdminPage() {
             variant="outline"
             onClick={refreshDemo}
             disabled={refreshing}
-            title="Reset Kafé Cendana to a fresh demo state"
+            title="Reset Buranchi (demo tenant) to a fresh demo state"
             className="rounded-md h-9 px-3 gap-1.5 text-[13px]"
           >
             {refreshing ? (

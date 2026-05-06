@@ -66,7 +66,7 @@ def _find_demo_tenant(db) -> dict | None:
     return rows[0] if rows else None
 
 
-def reset_kafe_cendana(db) -> dict:
+def reset_demo_tenant(db) -> dict:
     """Wipe test data + restore seed customers + reset table state."""
     t = _find_demo_tenant(db)
     if not t:
@@ -129,7 +129,7 @@ def reset_kafe_cendana(db) -> dict:
     return {"ok": True, "tenant_id": tid, **counts}
 
 
-def seed_kafe_cendana(db) -> dict:
+def seed_demo_tenant(db) -> dict:
     """Fill with realistic 7-day revenue + today's bookings + sample chats."""
     t = _find_demo_tenant(db)
     if not t:
@@ -276,12 +276,16 @@ def seed_kafe_cendana(db) -> dict:
     }
 
 
-def refresh_kafe_cendana(db) -> dict:
-    """Reset + reseed in one call. Returns combined counts."""
-    reset = reset_kafe_cendana(db)
+def refresh_demo_tenant(db) -> dict:
+    """Reset + reseed the demo tenant (Buranchi) in one call.
+
+    Returns combined counts. Hardcoded to whatever DEMO_TENANT_NAME
+    is at the top of the module — won't touch other tenants.
+    """
+    reset = reset_demo_tenant(db)
     if not reset.get("ok"):
         return {"ok": False, "error": reset.get("error")}
-    seed = seed_kafe_cendana(db)
+    seed = seed_demo_tenant(db)
     if not seed.get("ok"):
         return {"ok": False, "error": seed.get("error")}
     return {"ok": True, "reset": reset, "seed": seed}
