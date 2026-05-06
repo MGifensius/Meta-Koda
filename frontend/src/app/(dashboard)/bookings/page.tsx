@@ -89,26 +89,27 @@ interface Customer {
 
 export default function BookingsPage() {
   const { tenantId } = useAuth();
-  const cachedBookings =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Booking[]>(`bookings:${tenantId}`)
-      : null;
-  const cachedTables =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Table[]>(`pos_tables:${tenantId}`)
-      : null;
-  const cachedCustomers =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Customer[]>(`customers:${tenantId}`)
-      : null;
-
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [bookings, setBookings] = useState<Booking[]>(cachedBookings ?? []);
-  const [tables, setTables] = useState<Table[]>(cachedTables ?? []);
-  const [customers, setCustomers] = useState<Customer[]>(cachedCustomers ?? []);
-  const [loading, setLoading] = useState(!cachedBookings);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
   const [openingHours, setOpeningHours] = useState<string>("11:00 - 22:00");
+
+  // Hydrate caches when auth finishes (tenantId is null on first render).
+  useEffect(() => {
+    if (!tenantId) return;
+    const cB = readCache<Booking[]>(`bookings:${tenantId}`);
+    const cT = readCache<Table[]>(`pos_tables:${tenantId}`);
+    const cC = readCache<Customer[]>(`customers:${tenantId}`);
+    if (cB && cB.length > 0) {
+      setBookings(cB);
+      setLoading(false);
+    }
+    if (cT && cT.length > 0) setTables(cT);
+    if (cC && cC.length > 0) setCustomers(cC);
+  }, [tenantId]);
   const hours = deriveOperatingHours(openingHours);
   const timeSlots = bookingTimeSlots(openingHours);
 

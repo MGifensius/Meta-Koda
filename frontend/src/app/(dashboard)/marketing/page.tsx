@@ -58,17 +58,16 @@ const audienceLabel: Record<string, string> = {
 
 export default function MarketingPage() {
   const { tenantId } = useAuth();
-  const cachedCampaigns =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Campaign[]>(`campaigns:${tenantId}`)
-      : null;
-
   const [tab, setTab] = useState("all");
-  const [campaignList, setCampaignList] = useState<Campaign[]>(
-    cachedCampaigns ?? [],
-  );
+  const [campaignList, setCampaignList] = useState<Campaign[]>([]);
   const [memberCount, setMemberCount] = useState(0);
   const [nonMemberCount, setNonMemberCount] = useState(0);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    const cached = readCache<Campaign[]>(`campaigns:${tenantId}`);
+    if (cached && cached.length > 0) setCampaignList(cached);
+  }, [tenantId]);
   const [formOpen, setFormOpen] = useState(false);
   const [formName, setFormName] = useState("");
   const [formMessage, setFormMessage] = useState("");

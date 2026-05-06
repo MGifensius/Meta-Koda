@@ -87,18 +87,25 @@ function parseAmount(s: string): number {
 
 export default function FloorOperationPage() {
   const { tenantId } = useAuth();
-  const cachedTables =
-    typeof window !== "undefined" && tenantId
-      ? readCache<RestaurantTable[]>(`floor_tables:${tenantId}`)
-      : null;
-  const cachedToday =
-    typeof window !== "undefined" && tenantId
-      ? readCache<TodaySummary>(`floor_today:${tenantId}`)
-      : null;
-  const [tables, setTables] = useState<RestaurantTable[]>(cachedTables ?? []);
-  const [today, setToday] = useState<TodaySummary | null>(cachedToday);
-  const [loading, setLoading] = useState(!cachedTables);
+  const [tables, setTables] = useState<RestaurantTable[]>([]);
+  const [today, setToday] = useState<TodaySummary | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Hydrate from cache once auth resolves and tenantId is known. On
+  // first render tenantId is still null (auth bootstrap is async), so
+  // initial-state hydration would always miss. useEffect fires the tick
+  // tenantId arrives, before the network fetch resolves.
+  useEffect(() => {
+    if (!tenantId) return;
+    const cT = readCache<RestaurantTable[]>(`floor_tables:${tenantId}`);
+    const cS = readCache<TodaySummary>(`floor_today:${tenantId}`);
+    if (cT && cT.length > 0) {
+      setTables(cT);
+      setLoading(false);
+    }
+    if (cS) setToday(cS);
+  }, [tenantId]);
 
   const [actionTable, setActionTable] = useState<RestaurantTable | null>(null);
   const [submitting, setSubmitting] = useState(false);

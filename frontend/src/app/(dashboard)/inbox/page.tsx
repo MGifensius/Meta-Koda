@@ -33,21 +33,26 @@ type Message = {
 
 export default function InboxPage() {
   const { tenantId } = useAuth();
-  // SWR-style hydrate: pull last known conversations + messages from
-  // localStorage so the inbox lights up with real data on first paint
-  // instead of showing "Belum ada pesan" while the network catches up.
-  const cachedConvs =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Conversation[]>(`inbox_convs:${tenantId}`)
-      : null;
-  const [convs, setConvs] = useState<Conversation[]>(cachedConvs ?? []);
+  const [convs, setConvs] = useState<Conversation[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [search, setSearch] = useState("");
   const [newMessage, setNewMessage] = useState("");
-  // Only show the splash spinner if we have NO cached data — otherwise
-  // the user sees the cached list immediately and we refresh silently.
-  const [loading, setLoading] = useState(!cachedConvs);
+  const [loading, setLoading] = useState(true);
+
+  // SWR-style hydrate: when tenantId becomes available (auth finishes
+  // bootstrapping a tick after first render), pull the last known
+  // conversations from localStorage so the inbox lights up with real
+  // data instead of showing "Belum ada pesan" while the network call
+  // resolves. Falls through to fresh data when the fetch returns.
+  useEffect(() => {
+    if (!tenantId) return;
+    const cached = readCache<Conversation[]>(`inbox_convs:${tenantId}`);
+    if (cached && cached.length > 0) {
+      setConvs(cached);
+      setLoading(false);
+    }
+  }, [tenantId]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaWrapRef = useRef<HTMLDivElement>(null);
   const lastScrolledConvRef = useRef<string>("");

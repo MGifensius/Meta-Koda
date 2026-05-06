@@ -39,14 +39,18 @@ const CATEGORIES = ["Brunch", "Lite Bites", "Main", "Beverage", "Dessert"];
 
 export default function MenuPage() {
   const { tenantId } = useAuth();
-  const cachedItems =
-    typeof window !== "undefined" && tenantId
-      ? readCache<MenuItem[]>(`menu:${tenantId}`)
-      : null;
-
-  const [items, setItems] = useState<MenuItem[]>(cachedItems ?? []);
+  const [items, setItems] = useState<MenuItem[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(!cachedItems);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    const cached = readCache<MenuItem[]>(`menu:${tenantId}`);
+    if (cached && cached.length > 0) {
+      setItems(cached);
+      setLoading(false);
+    }
+  }, [tenantId]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

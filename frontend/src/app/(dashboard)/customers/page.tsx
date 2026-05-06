@@ -41,18 +41,21 @@ type Customer = {
 
 export default function CustomersPage() {
   const { tenantId } = useAuth();
-  const cachedCustomers =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Customer[]>(`customers:${tenantId}`)
-      : null;
-
-  const [customers, setCustomers] = useState<Customer[]>(cachedCustomers ?? []);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
+
+  // Hydrate from cache when auth finishes (tenantId arrives a tick
+  // after first render — initial-state hydration would miss it).
+  useEffect(() => {
+    if (!tenantId) return;
+    const cached = readCache<Customer[]>(`customers:${tenantId}`);
+    if (cached && cached.length > 0) setCustomers(cached);
+  }, [tenantId]);
 
   const fetchCustomers = useCallback(async () => {
     try {

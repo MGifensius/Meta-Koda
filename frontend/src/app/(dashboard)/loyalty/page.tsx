@@ -25,17 +25,16 @@ type Customer = {
 
 export default function LoyaltyPage() {
   const { tenantId } = useAuth();
-  const cachedRewards =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Reward[]>(`rewards:${tenantId}`)
-      : null;
-  const cachedCustomers =
-    typeof window !== "undefined" && tenantId
-      ? readCache<Customer[]>(`customers:${tenantId}`)
-      : null;
+  const [rewardList, setRewardList] = useState<Reward[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
-  const [rewardList, setRewardList] = useState<Reward[]>(cachedRewards ?? []);
-  const [customers, setCustomers] = useState<Customer[]>(cachedCustomers ?? []);
+  useEffect(() => {
+    if (!tenantId) return;
+    const cR = readCache<Reward[]>(`rewards:${tenantId}`);
+    const cC = readCache<Customer[]>(`customers:${tenantId}`);
+    if (cR && cR.length > 0) setRewardList(cR);
+    if (cC && cC.length > 0) setCustomers(cC);
+  }, [tenantId]);
 
   const fetchRewards = useCallback(async () => {
     try {
