@@ -744,6 +744,22 @@ def _tool_create_booking(customer_id: str, date: str, time: str, pax: int,
     ).limit(1).execute()
     customer_phone = customer.data[0]["phone"] if customer.data else ""
 
+    # `seating` is constrained by bookings_seating_check to one of
+    # ('indoor','outdoor','window','private') (migration 008). The
+    # tenant's actual zone label (e.g. "Teras Otella", "Poolside",
+    # "Indoor Otella") would violate that CHECK and fail with 500.
+    # Map zone keywords to the allowed values; the real zone name is
+    # already preserved on the table_id reference.
+    raw_zone = (table_row.get("zone") or "").lower()
+    if any(k in raw_zone for k in ("teras", "pool", "outdoor", "garden")):
+        seating = "outdoor"
+    elif "window" in raw_zone:
+        seating = "window"
+    elif "private" in raw_zone or "vip" in raw_zone:
+        seating = "private"
+    else:
+        seating = "indoor"
+
     result = db.table("bookings").insert({
         "tenant_id": _tid(),
         "customer_id": customer_id,
@@ -755,7 +771,7 @@ def _tool_create_booking(customer_id: str, date: str, time: str, pax: int,
         "customer_phone": customer_phone,
         "notes": notes,
         "status": "reserved",
-        "seating": table_row.get("zone", "indoor").lower(),
+        "seating": seating,
     }).execute()
 
     # DB trigger flipped the table to 'reserved'. Revert to 'available'

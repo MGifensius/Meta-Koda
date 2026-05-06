@@ -408,13 +408,15 @@ export default function PublicChatPage() {
         }}
         className="bg-[#F0F0F0] px-3 py-2 flex items-center gap-2 border-t border-gray-200 shrink-0"
       >
+        {/* Input stays enabled while the bot is replying so the user
+            can keep typing — only the submit is gated. The `if (sending)
+            return` guard inside send() prevents queued double-sends. */}
         <input
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ketik pesan…"
-          disabled={sending}
-          className="flex-1 bg-white rounded-full px-4 py-2 text-[14px] focus:outline-none disabled:opacity-50"
+          className="flex-1 bg-white rounded-full px-4 py-2 text-[14px] focus:outline-none"
           autoFocus
         />
         <button
