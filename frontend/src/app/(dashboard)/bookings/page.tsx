@@ -34,6 +34,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, statusBadge, tableStatusColor } from "@/lib/format";
 import { apiFetch } from "@/lib/api-client";
+import { bookingTimeSlots, deriveOperatingHours } from "@/lib/hours";
 
 /* ── types ── */
 
@@ -91,6 +92,9 @@ export default function BookingsPage() {
   const [tables, setTables] = useState<Table[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openingHours, setOpeningHours] = useState<string>("11:00 - 22:00");
+  const hours = deriveOperatingHours(openingHours);
+  const timeSlots = bookingTimeSlots(openingHours);
 
   /* ── form state ── */
   const [formOpen, setFormOpen] = useState(false);
@@ -139,6 +143,12 @@ export default function BookingsPage() {
   useEffect(() => {
     fetchAll();
     fetchCustomers();
+    apiFetch("/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (s?.opening_hours) setOpeningHours(s.opening_hours);
+      })
+      .catch(() => undefined);
     const interval = setInterval(fetchAll, 5000);
     return () => clearInterval(interval);
   }, [fetchAll, fetchCustomers]);
@@ -494,29 +504,24 @@ export default function BookingsPage() {
                     <Select
                       value={form.time}
                       onValueChange={(v) =>
-                        setForm((f) => ({ ...f, time: v ?? "19:00" }))
+                        setForm((f) => ({ ...f, time: v ?? timeSlots[0] }))
                       }
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[
-                          "11:00",
-                          "12:00",
-                          "13:00",
-                          "17:00",
-                          "18:00",
-                          "19:00",
-                          "20:00",
-                          "21:00",
-                        ].map((t) => (
+                        {timeSlots.map((t) => (
                           <SelectItem key={t} value={t}>
                             {t}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Buka {hours.hoursStr} · last order {hours.lastOrderStr} ·
+                      reservasi terakhir {hours.lastBookingStr}
+                    </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">

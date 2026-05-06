@@ -46,6 +46,24 @@ async def create_booking(
 ):
     db = get_db()
 
+    # Hours guard — refuse times outside operating window or after the
+    # auto-derived last-booking cutoff (closing − 1h, since last order is
+    # closing − 30m and the kitchen needs at least 30m to serve).
+    settings_rows = db.table("restaurant_settings").select("*").eq(
+        "tenant_id", user.tenant_id
+    ).limit(1).execute().data
+    settings = settings_rows[0] if settings_rows else {}
+    from app.services.bot import operating_hours, _parse_hhmm
+    hrs = operating_hours(settings)
+    req_min = _parse_hhmm(payload.time, fallback=-1)
+    if req_min < 0 or req_min < hrs["open_min"] or req_min > hrs["last_booking_min"]:
+        raise HTTPException(
+            422,
+            f"Booking jam {payload.time} di luar jam operasional. "
+            f"Restoran buka {hrs['hours_str']}, last order {hrs['last_order_str']}, "
+            f"reservasi terakhir {hrs['last_booking_str']} (1 jam sebelum tutup).",
+        )
+
     # Check 15-min cleaning buffer — reject if table is in cleaning state
     table = db.table("tables").select("status, cleaning_until").eq(
         "id", payload.table_id

@@ -95,6 +95,57 @@ _CONFIRM_TOKENS = {
 }
 
 
+def _parse_hhmm(s: str | None, fallback: int = 0) -> int:
+    """Parse 'HH:MM' or 'HH' into minutes-since-midnight."""
+    if not s:
+        return fallback
+    parts = s.strip().split(":")
+    try:
+        h = int(parts[0])
+        m = int(parts[1]) if len(parts) > 1 else 0
+        return h * 60 + m
+    except (ValueError, IndexError):
+        return fallback
+
+
+def _format_hhmm(total_minutes: int) -> str:
+    h = (total_minutes // 60) % 24
+    m = total_minutes % 60
+    return f"{h:02d}:{m:02d}"
+
+
+def operating_hours(settings: dict) -> dict:
+    """Derive the canonical operating-hour math from a tenant's settings.
+
+    Closing time is the source of truth:
+      • last_order   = closing - 30 minutes
+      • last_booking = closing - 60 minutes  (= last_order - 30)
+
+    `opening_hours` is stored as "HH:MM - HH:MM". `last_order` in the
+    settings row is treated as a display hint only — we always re-derive
+    from closing so the three values can never drift apart.
+    """
+    raw = (settings.get("opening_hours") or "11:00 - 22:00").strip()
+    open_str, close_str = "11:00", "22:00"
+    if " - " in raw:
+        open_str, close_str = (s.strip() for s in raw.split(" - ", 1))
+    open_min = _parse_hhmm(open_str, 11 * 60)
+    close_min = _parse_hhmm(close_str, 22 * 60)
+    last_order_min = close_min - 30
+    last_booking_min = close_min - 60  # one hour before closing
+    return {
+        "open_min": open_min,
+        "close_min": close_min,
+        "last_order_min": last_order_min,
+        "last_booking_min": last_booking_min,
+        "open_str": _format_hhmm(open_min),
+        "close_str": _format_hhmm(close_min),
+        "last_order_str": _format_hhmm(last_order_min),
+        "last_booking_str": _format_hhmm(last_booking_min),
+        "hours_str": f"{_format_hhmm(open_min)} - {_format_hhmm(close_min)}",
+    }
+
+
 def _is_confirmation(message: str) -> bool:
     """Detect when a customer reply is essentially 'yes/agreed' so we can
     keep them out of the generic-menu fallback when the LLM choked."""
@@ -218,10 +269,12 @@ RULES:
 - Jika jumlah tamu melebihi kapasitas meja terbesar, informasikan kapasitas meja yang tersedia dan sarankan untuk menyesuaikan jumlah tamu.
 - Jika customer menyebutkan alergi, preferensi makanan, atau request khusus (misalnya "alergi kacang", "vegetarian", "high chair"), catat di notes saat create_booking. Jawab dengan sopan bahwa request akan dicatat.
 - TANGGAL: Gunakan [TODAY] dan [TOMORROW] dari context. Jika customer bilang "tanggal 20" tanpa tahun, SELALU gunakan bulan dan tahun yang terdekat dari hari ini. JANGAN tanyakan tahun.
-- RESERVASI TERAKHIR (PENTING): Jam reservasi terakhir yang DITERIMA = last_order − 30 menit, INKLUSIF. Jika last order 21:30, maka jam 21:00 MASIH BISA (diterima). Yang ditolak hanya 21:01 ke atas sampai 21:30.
-  • Contoh diterima: 20:45, 20:59, 21:00 — semua OK.
-  • Contoh ditolak: 21:01, 21:15, 21:30 — semua terlalu dekat last order.
-  • JANGAN pernah menolak waktu yang persis sama dengan latest_reservation (last_order − 30 menit). Panggil `get_availability` untuk memastikan — JANGAN refuse tanpa memanggil tool.
+- JAM OPERASIONAL (SUMBER KEBENARAN: closing time):
+  • Last order = closing − 30 menit (otomatis).
+  • Reservasi terakhir = closing − 60 menit (= 1 jam sebelum tutup, otomatis).
+  • Contoh kalau tutup jam 22:00: last order 21:30, reservasi terakhir bisa untuk jam 21:00 (inklusif).
+  • Yang DITOLAK hanya jam SETELAH "reservasi terakhir" (mis. 21:01 ke atas kalau tutup 22:00).
+  • JANGAN pernah menolak jam yang persis sama dengan last_booking. Selalu panggil `get_availability` dulu — biarkan tool yang memutuskan.
 - JANGAN menolak waktu reservasi berdasarkan aturan di atas tanpa memanggil `get_availability` terlebih dahulu. Biarkan tool yang memutuskan available atau tidak; kamu hanya menyampaikan hasilnya.
 - KAPASITAS: Jika customer ingin booking untuk lebih dari kapasitas meja terbesar, tawarkan opsi reservasi beberapa meja terpisah. Setiap meja perlu di-booking terpisah.
 """
@@ -353,40 +406,31 @@ def _tool_get_availability(date: str, time: str, pax: int) -> dict:
     """Check available tables for the given date/time/pax."""
     db = get_db()
 
-    # Check operating hours from settings
+    # Check operating hours — closing time is the source of truth, with
+    # last_order = closing-30min and last_booking = closing-60min derived
+    # canonically by `operating_hours()`.
     settings = _get_restaurant_settings()
-    hours = settings.get("opening_hours", "11:00 - 22:00")
-    last_order = settings.get("last_order", "21:30")
     days_open = settings.get("days_open", "Setiap hari")
+    hrs = operating_hours(settings)
+    req_min = _parse_hhmm(time, fallback=-1)
 
-    try:
-        open_time, close_time = hours.split(" - ")
-        req_h, req_m = int(time.split(":")[0]), int(time.split(":")[1]) if ":" in time else 0
-        open_h = int(open_time.split(":")[0])
-        close_h = int(close_time.split(":")[0])
-        lo_h, lo_m = int(last_order.split(":")[0]), int(last_order.split(":")[1]) if ":" in last_order else 0
-
-        # Calculate latest reservation time (30 min before last order)
-        latest_res_min = lo_h * 60 + lo_m - 30
-        latest_res_h = latest_res_min // 60
-        latest_res_m = latest_res_min % 60
-        latest_res_time = f"{latest_res_h:02d}:{latest_res_m:02d}"
-
-        req_total_min = req_h * 60 + req_m
-
-        if req_total_min < open_h * 60 or req_total_min > latest_res_min:
-            return {
-                "available": False,
-                "tables": [],
-                "reason": f"Jam {time} di luar waktu reservasi yang tersedia.",
-                "operating_hours": hours,
-                "last_order": last_order,
-                "latest_reservation": latest_res_time,
-                "days_open": days_open,
-                "suggestion": f"Restoran buka {days_open} jam {hours}, last order jam {last_order}. Reservasi terakhir bisa dilakukan untuk jam {latest_res_time}. Silakan pilih jam antara {open_time} - {latest_res_time}.",
-            }
-    except (ValueError, IndexError):
-        pass
+    if req_min >= 0 and (req_min < hrs["open_min"] or req_min > hrs["last_booking_min"]):
+        return {
+            "available": False,
+            "tables": [],
+            "reason": f"Jam {time} di luar waktu reservasi yang tersedia.",
+            "operating_hours": hrs["hours_str"],
+            "last_order": hrs["last_order_str"],
+            "latest_reservation": hrs["last_booking_str"],
+            "days_open": days_open,
+            "suggestion": (
+                f"Restoran buka {days_open} jam {hrs['hours_str']}, "
+                f"last order jam {hrs['last_order_str']}. Reservasi terakhir "
+                f"bisa dilakukan untuk jam {hrs['last_booking_str']} "
+                f"(1 jam sebelum tutup). Silakan pilih jam antara "
+                f"{hrs['open_str']} - {hrs['last_booking_str']}."
+            ),
+        }
 
     # Get ALL tables to show capacity info
     every_table = db.table("tables").select("id, capacity, zone").eq(
@@ -769,11 +813,13 @@ async def generate_reply(customer_phone: str, message: str,
     except Exception:
         pass
 
+    hrs = operating_hours(settings)
     settings_context = (
         f"\n\nINFORMASI RESTORAN (gunakan untuk menjawab pertanyaan):\n"
         f"Nama: {settings.get('name', 'Restoran')}\n"
-        f"Jam buka: {settings.get('days_open', 'Setiap hari')} {settings.get('opening_hours', '11:00 - 22:00')}\n"
-        f"Last order: {settings.get('last_order', '21:30')}\n"
+        f"Jam buka: {settings.get('days_open', 'Setiap hari')} {hrs['hours_str']}\n"
+        f"Last order: {hrs['last_order_str']} (otomatis = tutup − 30 menit)\n"
+        f"Reservasi terakhir: {hrs['last_booking_str']} (otomatis = tutup − 1 jam)\n"
         f"Lokasi: {settings.get('location', '')}\n"
         f"Instagram: {settings.get('instagram', '')}\n"
         f"Telepon: {settings.get('phone', '')}\n"
@@ -1036,12 +1082,15 @@ def _fallback_reply(message: str, customer_name: str = None, is_first_message: b
 
     # --- HOURS ---
     elif any(w in msg for w in ["jam", "buka", "tutup", "waktu", "operasional", "open"]):
-        hours = settings.get("opening_hours", "11:00 - 22:00")
-        last_order = settings.get("last_order", "21:30")
+        hrs = operating_hours(settings)
         days = settings.get("days_open", "Setiap hari")
         location = settings.get("location", "")
         loc_text = f"\n📍 {location}" if location else ""
-        return f"{resto_name} buka {days} jam {hours} ya! 🕐\nLast order jam {last_order}.{loc_text}"
+        return (
+            f"{resto_name} buka {days} jam {hrs['hours_str']} ya 🕐\n"
+            f"Last order jam {hrs['last_order_str']}, reservasi terakhir bisa "
+            f"untuk jam {hrs['last_booking_str']} (1 jam sebelum tutup).{loc_text}"
+        )
 
     # --- PROMO ---
     elif any(w in msg for w in ["promo", "diskon", "discount", "special"]):
