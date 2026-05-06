@@ -49,6 +49,34 @@ type Profile = {
   email: string;
 };
 
+// Hard ceiling on auth bootstrap. If Supabase or the network is having
+// a bad day, never trap the user on the splash forever — drop them to
+// the login page after this elapses and let them retry. 8s is generous
+// enough to ride out an HF cold-start, short enough that "stuck" feels
+// like a temporary blip not a broken site.
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 8000;
+
+// Accepts any thenable so we can wrap Supabase's PostgrestBuilder
+// (which is awaitable but not strictly a Promise) without casts.
+function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(
+      () => reject(new Error(`[auth] ${label} timed out after ${ms}ms`)),
+      ms,
+    );
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -60,11 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // brand without an extra request. The `tenants_self_read` RLS policy
     // (migration 030) lets the authenticated user read only their own
     // tenant row.
-    const { data, error } = await supabase
-      .from("users")
-      .select("role, name, tenant_id, email, tenants(business_name)")
-      .eq("id", userId)
-      .maybeSingle();
+    const { data, error } = await withTimeout(
+      supabase
+        .from("users")
+        .select("role, name, tenant_id, email, tenants(business_name)")
+        .eq("id", userId)
+        .maybeSingle(),
+      AUTH_BOOTSTRAP_TIMEOUT_MS,
+      "loadProfile",
+    );
     if (error || !data) {
       // User authenticated successfully but isn't provisioned in `users` —
       // sign them out so they see the login screen instead of a half-app.
@@ -93,15 +125,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let hasProfile = false;
 
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
-      const sess = data.session;
-      setSession(sess);
-      if (sess) {
-        await loadProfile(sess.user.id, sess.user.email ?? "");
-        hasProfile = true;
+      try {
+        // getSession reads from localStorage first and only hits the
+        // network for token refresh, but it CAN hang if the server is
+        // cold or the connection is flaky. Cap it.
+        const { data } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_BOOTSTRAP_TIMEOUT_MS,
+          "getSession",
+        );
+        if (cancelled) return;
+        const sess = data.session;
+        setSession(sess);
+        if (sess) {
+          await loadProfile(sess.user.id, sess.user.email ?? "");
+          hasProfile = true;
+        }
+      } catch (err) {
+        // Anything explodes during bootstrap — log and treat the user
+        // as logged-out so they hit the login page instead of an
+        // infinite splash. They can retry from there.
+        console.error("[auth] bootstrap failed:", err);
+        if (!cancelled) {
+          setSession(null);
+          setProfile(null);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-      setIsLoading(false);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, sess) => {
@@ -131,9 +182,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Only flip to loading-screen mode when we don't already have a
       // profile in memory; otherwise reload silently in the background.
       if (!hasProfile) setIsLoading(true);
-      await loadProfile(sess.user.id, sess.user.email ?? "");
-      hasProfile = true;
-      setIsLoading(false);
+      try {
+        await loadProfile(sess.user.id, sess.user.email ?? "");
+        hasProfile = true;
+      } catch (err) {
+        console.error("[auth] profile reload failed:", err);
+        setProfile(null);
+      } finally {
+        setIsLoading(false);
+      }
     });
 
     return () => {
