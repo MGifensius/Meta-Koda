@@ -21,6 +21,8 @@ import {
   tierBadge,
 } from "@/lib/format";
 import { apiFetch } from "@/lib/api-client";
+import { readCache, writeCache } from "@/lib/cached-state";
+import { useAuth } from "@/lib/role-context";
 
 type Customer = {
   id: string;
@@ -38,7 +40,13 @@ type Customer = {
 };
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const { tenantId } = useAuth();
+  const cachedCustomers =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Customer[]>(`customers:${tenantId}`)
+      : null;
+
+  const [customers, setCustomers] = useState<Customer[]>(cachedCustomers ?? []);
   const [search, setSearch] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -51,10 +59,11 @@ export default function CustomersPage() {
       const res = await apiFetch("/customers/");
       const data = await res.json();
       setCustomers(data);
+      if (tenantId) writeCache(`customers:${tenantId}`, data);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     fetchCustomers();

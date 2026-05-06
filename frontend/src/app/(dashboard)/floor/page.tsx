@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/api-client";
 import { formatCurrency, tableStatusColor } from "@/lib/format";
+import { readCache, writeCache } from "@/lib/cached-state";
+import { useAuth } from "@/lib/role-context";
 
 type TableStatus = "available" | "reserved" | "occupied" | "cleaning";
 
@@ -84,9 +86,18 @@ function parseAmount(s: string): number {
 }
 
 export default function FloorOperationPage() {
-  const [tables, setTables] = useState<RestaurantTable[]>([]);
-  const [today, setToday] = useState<TodaySummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { tenantId } = useAuth();
+  const cachedTables =
+    typeof window !== "undefined" && tenantId
+      ? readCache<RestaurantTable[]>(`floor_tables:${tenantId}`)
+      : null;
+  const cachedToday =
+    typeof window !== "undefined" && tenantId
+      ? readCache<TodaySummary>(`floor_today:${tenantId}`)
+      : null;
+  const [tables, setTables] = useState<RestaurantTable[]>(cachedTables ?? []);
+  const [today, setToday] = useState<TodaySummary | null>(cachedToday);
+  const [loading, setLoading] = useState(!cachedTables);
   const [error, setError] = useState("");
 
   const [actionTable, setActionTable] = useState<RestaurantTable | null>(null);
@@ -117,15 +128,21 @@ export default function FloorOperationPage() {
         setError(`Failed to load tables (${tRes.status})`);
         return;
       }
-      setTables(await tRes.json());
-      if (sRes.ok) setToday(await sRes.json());
+      const tablesData = await tRes.json();
+      setTables(tablesData);
+      if (tenantId) writeCache(`floor_tables:${tenantId}`, tablesData);
+      if (sRes.ok) {
+        const todayData = await sRes.json();
+        setToday(todayData);
+        if (tenantId) writeCache(`floor_today:${tenantId}`, todayData);
+      }
       setError("");
     } catch {
       setError("Network error.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     fetchAll();

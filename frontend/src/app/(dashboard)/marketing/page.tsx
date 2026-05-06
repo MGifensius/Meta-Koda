@@ -33,6 +33,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, formatNumber, statusBadge } from "@/lib/format";
 import { apiFetch } from "@/lib/api-client";
+import { readCache, writeCache } from "@/lib/cached-state";
+import { useAuth } from "@/lib/role-context";
 
 type Campaign = {
   id: string;
@@ -55,8 +57,16 @@ const audienceLabel: Record<string, string> = {
 };
 
 export default function MarketingPage() {
+  const { tenantId } = useAuth();
+  const cachedCampaigns =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Campaign[]>(`campaigns:${tenantId}`)
+      : null;
+
   const [tab, setTab] = useState("all");
-  const [campaignList, setCampaignList] = useState<Campaign[]>([]);
+  const [campaignList, setCampaignList] = useState<Campaign[]>(
+    cachedCampaigns ?? [],
+  );
   const [memberCount, setMemberCount] = useState(0);
   const [nonMemberCount, setNonMemberCount] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
@@ -74,10 +84,11 @@ export default function MarketingPage() {
       const res = await apiFetch("/marketing/campaigns");
       const data = await res.json();
       setCampaignList(data);
+      if (tenantId) writeCache(`campaigns:${tenantId}`, data);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [tenantId]);
 
   const fetchCustomerCounts = useCallback(async () => {
     try {

@@ -35,6 +35,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate, statusBadge, tableStatusColor } from "@/lib/format";
 import { apiFetch } from "@/lib/api-client";
 import { bookingTimeSlots, deriveOperatingHours } from "@/lib/hours";
+import { readCache, writeCache } from "@/lib/cached-state";
+import { useAuth } from "@/lib/role-context";
 
 /* ── types ── */
 
@@ -86,12 +88,26 @@ interface Customer {
 /* ── page ── */
 
 export default function BookingsPage() {
+  const { tenantId } = useAuth();
+  const cachedBookings =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Booking[]>(`bookings:${tenantId}`)
+      : null;
+  const cachedTables =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Table[]>(`pos_tables:${tenantId}`)
+      : null;
+  const cachedCustomers =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Customer[]>(`customers:${tenantId}`)
+      : null;
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<Booking[]>(cachedBookings ?? []);
+  const [tables, setTables] = useState<Table[]>(cachedTables ?? []);
+  const [customers, setCustomers] = useState<Customer[]>(cachedCustomers ?? []);
+  const [loading, setLoading] = useState(!cachedBookings);
   const [openingHours, setOpeningHours] = useState<string>("11:00 - 22:00");
   const hours = deriveOperatingHours(openingHours);
   const timeSlots = bookingTimeSlots(openingHours);
@@ -123,22 +139,27 @@ export default function BookingsPage() {
       const tData = await tRes.json();
       setBookings(bData);
       setTables(tData);
+      if (tenantId) {
+        writeCache(`bookings:${tenantId}`, bData);
+        writeCache(`pos_tables:${tenantId}`, tData);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenantId]);
 
   const fetchCustomers = useCallback(async () => {
     try {
       const res = await apiFetch("/customers/");
       const data = await res.json();
       setCustomers(data);
+      if (tenantId) writeCache(`customers:${tenantId}`, data);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     fetchAll();

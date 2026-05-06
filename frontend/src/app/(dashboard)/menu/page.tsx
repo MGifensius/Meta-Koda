@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/format";
 import { apiFetch } from "@/lib/api-client";
+import { readCache, writeCache } from "@/lib/cached-state";
+import { useAuth } from "@/lib/role-context";
 
 type MenuItem = {
   id: string;
@@ -36,9 +38,15 @@ type MenuItem = {
 const CATEGORIES = ["Brunch", "Lite Bites", "Main", "Beverage", "Dessert"];
 
 export default function MenuPage() {
-  const [items, setItems] = useState<MenuItem[]>([]);
+  const { tenantId } = useAuth();
+  const cachedItems =
+    typeof window !== "undefined" && tenantId
+      ? readCache<MenuItem[]>(`menu:${tenantId}`)
+      : null;
+
+  const [items, setItems] = useState<MenuItem[]>(cachedItems ?? []);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedItems);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -53,12 +61,13 @@ export default function MenuPage() {
       const res = await apiFetch("/pos/menu?include_unavailable=true");
       const data = await res.json();
       setItems(data);
+      if (tenantId) writeCache(`menu:${tenantId}`, data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     fetchMenu();

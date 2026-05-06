@@ -5,6 +5,8 @@ import { Gift, Crown, Coins } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { formatNumber, tierBadge } from "@/lib/format";
 import { apiFetch } from "@/lib/api-client";
+import { readCache, writeCache } from "@/lib/cached-state";
+import { useAuth } from "@/lib/role-context";
 
 type Reward = {
   id: string;
@@ -22,28 +24,40 @@ type Customer = {
 };
 
 export default function LoyaltyPage() {
-  const [rewardList, setRewardList] = useState<Reward[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const { tenantId } = useAuth();
+  const cachedRewards =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Reward[]>(`rewards:${tenantId}`)
+      : null;
+  const cachedCustomers =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Customer[]>(`customers:${tenantId}`)
+      : null;
+
+  const [rewardList, setRewardList] = useState<Reward[]>(cachedRewards ?? []);
+  const [customers, setCustomers] = useState<Customer[]>(cachedCustomers ?? []);
 
   const fetchRewards = useCallback(async () => {
     try {
       const res = await apiFetch("/loyalty/rewards");
       const data = await res.json();
       setRewardList(data);
+      if (tenantId) writeCache(`rewards:${tenantId}`, data);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [tenantId]);
 
   const fetchCustomers = useCallback(async () => {
     try {
       const res = await apiFetch("/customers/");
       const data = await res.json();
       setCustomers(data);
+      if (tenantId) writeCache(`customers:${tenantId}`, data);
     } catch (err) {
       console.error(err);
     }
-  }, []);
+  }, [tenantId]);
 
   useEffect(() => {
     fetchRewards();

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatRelativeTime } from "@/lib/format";
 import { apiFetch } from "@/lib/api-client";
+import { readCache, writeCache } from "@/lib/cached-state";
+import { useAuth } from "@/lib/role-context";
 
 type Conversation = {
   id: string;
@@ -30,12 +32,22 @@ type Message = {
 };
 
 export default function InboxPage() {
-  const [convs, setConvs] = useState<Conversation[]>([]);
+  const { tenantId } = useAuth();
+  // SWR-style hydrate: pull last known conversations + messages from
+  // localStorage so the inbox lights up with real data on first paint
+  // instead of showing "Belum ada pesan" while the network catches up.
+  const cachedConvs =
+    typeof window !== "undefined" && tenantId
+      ? readCache<Conversation[]>(`inbox_convs:${tenantId}`)
+      : null;
+  const [convs, setConvs] = useState<Conversation[]>(cachedConvs ?? []);
   const [selectedConvId, setSelectedConvId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [search, setSearch] = useState("");
   const [newMessage, setNewMessage] = useState("");
-  const [loading, setLoading] = useState(true);
+  // Only show the splash spinner if we have NO cached data — otherwise
+  // the user sees the cached list immediately and we refresh silently.
+  const [loading, setLoading] = useState(!cachedConvs);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaWrapRef = useRef<HTMLDivElement>(null);
   const lastScrolledConvRef = useRef<string>("");
@@ -48,22 +60,27 @@ export default function InboxPage() {
       const res = await apiFetch("/chat/conversations");
       const data = await res.json();
       setConvs(data);
+      if (tenantId) writeCache(`inbox_convs:${tenantId}`, data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenantId]);
 
-  const fetchMessages = useCallback(async (convId: string) => {
-    try {
-      const res = await apiFetch(`/chat/conversations/${convId}/messages`);
-      const data = await res.json();
-      setMessages(data);
-    } catch (err) {
-      console.error(err);
-    }
-  }, []);
+  const fetchMessages = useCallback(
+    async (convId: string) => {
+      try {
+        const res = await apiFetch(`/chat/conversations/${convId}/messages`);
+        const data = await res.json();
+        setMessages(data);
+        if (tenantId) writeCache(`inbox_msgs:${tenantId}:${convId}`, data);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [tenantId],
+  );
 
   useEffect(() => {
     fetchConversations();
@@ -86,12 +103,24 @@ export default function InboxPage() {
 
   useEffect(() => {
     if (selectedConvId) {
+      // Hydrate from cache first so the chat pane shows the prior thread
+      // immediately instead of going blank for ~300ms while the fetch
+      // resolves. Background fetch overwrites with the fresh data.
+      if (tenantId) {
+        const cached = readCache<Message[]>(
+          `inbox_msgs:${tenantId}:${selectedConvId}`,
+        );
+        if (cached) setMessages(cached);
+        else setMessages([]);
+      } else {
+        setMessages([]);
+      }
       fetchMessages(selectedConvId);
       markAsRead(selectedConvId);
       const interval = setInterval(() => fetchMessages(selectedConvId), 3000);
       return () => clearInterval(interval);
     }
-  }, [selectedConvId, fetchMessages, markAsRead]);
+  }, [selectedConvId, fetchMessages, markAsRead, tenantId]);
 
   const getViewport = useCallback((): HTMLElement | null => {
     return (
