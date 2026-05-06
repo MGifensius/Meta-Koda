@@ -81,6 +81,18 @@ async def health():
     return {"status": "ok", "service": "meta-koda"}
 
 
+@app.get("/api/keepalive")
+async def keepalive():
+    """Cheap warm-up endpoint — no DB, no auth.
+
+    Hugging Face Spaces sleep after periods of inactivity; the wake-up
+    on the next request can take 5–10s and that wait lands on a real
+    user's dashboard load. A small cron (Vercel cron or external pinger)
+    hits this every 5 minutes to keep the worker hot.
+    """
+    return {"alive": True, "ts": time.time()}
+
+
 @app.get("/api/settings")
 async def get_settings(user: CurrentUser = Depends(current_user)):
     from app.db import get_db

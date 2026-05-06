@@ -56,16 +56,59 @@ function tierBadgeClass(tier: string | null) {
   return m[tier] || "ink-4 bg-stone-100";
 }
 
+// Stale-while-revalidate cache. The dashboard re-renders on every page
+// visit; without this the first paint is empty zeros until the network
+// round-trip completes. Caching the last successful stats payload per
+// tenant means the UI lights up instantly with last-known-good data,
+// and the silent background refetch updates it once the server replies.
+const STATS_CACHE_KEY = (tid: string) => `dashboard_stats:${tid}`;
+
+function readCachedStats(tenantId: string | null | undefined): Stats | null {
+  if (!tenantId || typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STATS_CACHE_KEY(tenantId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedStats(tenantId: string, data: Stats) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      STATS_CACHE_KEY(tenantId),
+      JSON.stringify({ data, ts: Date.now() }),
+    );
+  } catch {
+    // Quota exceeded or storage disabled — silent fail, we just miss
+    // the next-visit speedup.
+  }
+}
+
 export default function Page() {
   const [stats, setStats] = useState<Stats | null>(null);
   const { userName, role, tenantId, tenantName, isLoading } = useAuth();
 
+  // Hydrate from cache as soon as we know the tenant. Synchronous —
+  // happens before the network call resolves so the cards render with
+  // real numbers on first paint instead of zeros.
+  useEffect(() => {
+    if (!tenantId) return;
+    const cached = readCachedStats(tenantId);
+    if (cached) setStats(cached);
+  }, [tenantId]);
+
   const fetchStats = async () => {
+    if (!tenantId) return;
     try {
       const res = await apiFetch("/dashboard/stats");
       if (!res.ok) return;
       const data = await res.json();
       setStats(data);
+      writeCachedStats(tenantId, data);
     } catch (err) {
       console.error(err);
     }
@@ -81,6 +124,8 @@ export default function Page() {
     fetchStats();
     const interval = setInterval(fetchStats, 10000);
     return () => clearInterval(interval);
+    // fetchStats closes over tenantId/role; deps cover the actual triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, tenantId, role]);
 
   const kpis = [
