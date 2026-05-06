@@ -1,3 +1,4 @@
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Depends
@@ -42,6 +43,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Lightweight timing middleware so we can see request duration in the
+# uvicorn log. Only logs slow requests (>200ms) plus every error so
+# normal traffic doesn't drown out the signal. Toggle via env var.
+PERF_LOG_THRESHOLD_MS = int(os.environ.get("PERF_LOG_THRESHOLD_MS", "200"))
+
+
+@app.middleware("http")
+async def _timing_middleware(request: Request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    response.headers["X-Response-Time-ms"] = f"{elapsed_ms:.0f}"
+    if elapsed_ms >= PERF_LOG_THRESHOLD_MS or response.status_code >= 400:
+        print(
+            f"[perf] {response.status_code} {request.method} {request.url.path} "
+            f"{elapsed_ms:.0f}ms"
+        )
+    return response
 
 app.include_router(customers.router, prefix="/api/customers", tags=["Customers"])
 app.include_router(bookings.router, prefix="/api/bookings", tags=["Bookings"])
@@ -92,7 +113,16 @@ async def update_settings(request: Request, user: CurrentUser = Depends(current_
 
 @app.get("/api/dashboard/stats")
 async def dashboard_stats(user: CurrentUser = Depends(current_user)):
-    """Dashboard KPIs and summary data, scoped to the requester's tenant."""
+    """Dashboard KPIs and summary data, scoped to the requester's tenant.
+
+    The eight queries below used to run sequentially — each Supabase
+    round-trip is 50–200ms over the network, so the endpoint was
+    taking 800–1500ms cold. Now they run in parallel via
+    `asyncio.to_thread`+`asyncio.gather`, which drops total wall time
+    to the slowest single query (typically 100–250ms).
+    """
+    import asyncio
+
     from app.db import get_db
     from datetime import datetime, timedelta
 
@@ -100,60 +130,98 @@ async def dashboard_stats(user: CurrentUser = Depends(current_user)):
     tenant_id = user.tenant_id
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
-
-    # Customer counts
-    all_customers = db.table("customers").select("id", count="exact").eq(
-        "tenant_id", tenant_id
-    ).execute()
-    total_customers = all_customers.count or 0
-
-    # Today's revenue — bill-input flow logs to revenue_transactions
     today_start = f"{today}T00:00:00"
-    rev_today_rows = db.table("revenue_transactions").select("amount").eq(
-        "tenant_id", tenant_id
-    ).gte("settled_at", today_start).execute().data
-    revenue_today = sum(r["amount"] for r in rev_today_rows) if rev_today_rows else 0
+    week_start = (now - timedelta(days=6)).strftime("%Y-%m-%d")
 
-    # Today's bookings
-    bookings_today = db.table("bookings").select("id", count="exact").eq(
-        "tenant_id", tenant_id
-    ).eq("date", today).execute()
+    def q_total_customers():
+        return db.table("customers").select("id", count="exact").eq(
+            "tenant_id", tenant_id
+        ).execute()
+
+    def q_rev_today():
+        return db.table("revenue_transactions").select("amount").eq(
+            "tenant_id", tenant_id
+        ).gte("settled_at", today_start).execute()
+
+    def q_bookings_today_count():
+        return db.table("bookings").select("id", count="exact").eq(
+            "tenant_id", tenant_id
+        ).eq("date", today).execute()
+
+    def q_all_settled():
+        # Full-table scan for avg_order. Fine while volumes are small;
+        # once revenue grows, swap to a SQL view that pre-aggregates
+        # AVG(amount) per tenant.
+        return db.table("revenue_transactions").select("amount").eq(
+            "tenant_id", tenant_id
+        ).execute()
+
+    def q_top():
+        return db.table("customers").select(
+            "id, name, points, tier, total_visits, total_spent"
+        ).eq("tenant_id", tenant_id).order(
+            "points", desc=True
+        ).limit(5).execute()
+
+    def q_today_bookings():
+        return db.table("bookings").select(
+            "id, guest_name, time, party_size, table_id, status"
+        ).eq("tenant_id", tenant_id).eq("date", today).order("time").execute()
+
+    def q_recent_convs():
+        return db.table("conversations").select(
+            "id, last_message, last_message_time, unread_count, status, customers(name, phone)"
+        ).eq("tenant_id", tenant_id).order(
+            "last_message_time", desc=True
+        ).limit(5).execute()
+
+    def q_week_rows():
+        return db.table("revenue_transactions").select(
+            "amount, settled_at"
+        ).eq("tenant_id", tenant_id).gte(
+            "settled_at", week_start + "T00:00:00"
+        ).execute()
+
+    # Fire all 8 queries concurrently. Even though supabase-py is
+    # blocking, asyncio.to_thread runs them on the threadpool so the
+    # network waits overlap.
+    started = time.perf_counter()
+    (
+        all_customers,
+        rev_today_res,
+        bookings_today,
+        all_settled_res,
+        top_res,
+        today_bookings_res,
+        recent_convs_res,
+        week_rows_res,
+    ) = await asyncio.gather(
+        asyncio.to_thread(q_total_customers),
+        asyncio.to_thread(q_rev_today),
+        asyncio.to_thread(q_bookings_today_count),
+        asyncio.to_thread(q_all_settled),
+        asyncio.to_thread(q_top),
+        asyncio.to_thread(q_today_bookings),
+        asyncio.to_thread(q_recent_convs),
+        asyncio.to_thread(q_week_rows),
+    )
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    print(f"[perf] dashboard_stats parallel-fan-out {elapsed_ms:.0f}ms (8 queries)")
+
+    total_customers = all_customers.count or 0
+    rev_today_rows = rev_today_res.data or []
+    revenue_today = sum(r["amount"] for r in rev_today_rows)
     total_bookings_today = bookings_today.count or 0
-
-    # Average check — across all settled transactions
-    all_settled = db.table("revenue_transactions").select("amount").eq(
-        "tenant_id", tenant_id
-    ).execute().data
+    all_settled = all_settled_res.data or []
     avg_order = (
         int(sum(r["amount"] for r in all_settled) / len(all_settled))
         if all_settled
         else 0
     )
-
-    # Top customers
-    top = db.table("customers").select(
-        "id, name, points, tier, total_visits, total_spent"
-    ).eq("tenant_id", tenant_id).order("points", desc=True).limit(5).execute().data
-
-    # Today's bookings list
-    today_bookings = db.table("bookings").select(
-        "id, guest_name, time, party_size, table_id, status"
-    ).eq("tenant_id", tenant_id).eq("date", today).order("time").execute().data
-
-    # Recent conversations
-    recent_convs = db.table("conversations").select(
-        "id, last_message, last_message_time, unread_count, status, customers(name, phone)"
-    ).eq("tenant_id", tenant_id).order(
-        "last_message_time", desc=True
-    ).limit(5).execute().data
-
-    # Revenue last 7 days — group settled transactions by day
-    week_start = (now - timedelta(days=6)).strftime("%Y-%m-%d")
-    week_rows = db.table("revenue_transactions").select(
-        "amount, settled_at"
-    ).eq("tenant_id", tenant_id).gte(
-        "settled_at", week_start + "T00:00:00"
-    ).execute().data
+    top = top_res.data or []
+    today_bookings = today_bookings_res.data or []
+    recent_convs = recent_convs_res.data or []
+    week_rows = week_rows_res.data or []
 
     day_totals = {}
     for i in range(7):
