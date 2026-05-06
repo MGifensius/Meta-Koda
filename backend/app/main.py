@@ -81,7 +81,7 @@ async def health():
     return {"status": "ok", "service": "meta-koda"}
 
 
-@app.get("/api/keepalive")
+@app.api_route("/api/keepalive", methods=["GET", "HEAD"])
 async def keepalive():
     """Cheap warm-up endpoint — no DB, no auth.
 
@@ -89,6 +89,10 @@ async def keepalive():
     on the next request can take 5–10s and that wait lands on a real
     user's dashboard load. A small cron (Vercel cron or external pinger)
     hits this every 5 minutes to keep the worker hot.
+
+    Accepts both GET and HEAD. UptimeRobot defaults to HEAD (lighter —
+    no body download) and FastAPI's @app.get won't match HEAD, so we
+    register both methods explicitly.
     """
     return {"alive": True, "ts": time.time()}
 
