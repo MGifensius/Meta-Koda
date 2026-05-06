@@ -156,19 +156,24 @@ export default function PublicChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registered, slug, phone]);
 
-  // Scroll to bottom on every new message / typing indicator. Use a
-  // microtask so the DOM has rendered before we measure scrollHeight.
+  // Scroll to bottom on every new message / typing indicator. We run
+  // the scroll three times — synchronously, after one frame (layout
+  // pass complete), and after 100ms (covers async image/font loads).
+  // Belt-and-suspenders because new messages from the 4s poll often
+  // arrive before React has finished laying out the previous render.
   useEffect(() => {
     const scroll = () => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
     };
     scroll();
-    // Run again after layout settles — fixes mobile browsers where
-    // the first scroll fires before the new message is laid out.
-    const t = setTimeout(scroll, 50);
-    return () => clearTimeout(t);
+    const raf = requestAnimationFrame(scroll);
+    const t = setTimeout(scroll, 100);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
   }, [messages, sending]);
 
   const startChat = (e: React.FormEvent) => {
@@ -323,9 +328,14 @@ export default function PublicChatPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#ECE5DD]">
+    // h-dvh (not min-h-screen) so the outer container is FIXED at the
+    // viewport height, which lets the messages div be the actual scroll
+    // container instead of the window. With min-h-screen the page grows
+    // and the browser scrolls — auto-scroll-to-bottom on a non-scrolling
+    // element is a no-op, which is why new messages slid off-screen.
+    <div className="h-dvh flex flex-col bg-[#ECE5DD] overflow-hidden">
       {/* WhatsApp-style header */}
-      <header className="bg-[#075E54] text-white px-4 py-3 flex items-center gap-3 shadow-md sticky top-0 z-10">
+      <header className="bg-[#075E54] text-white px-4 py-3 flex items-center gap-3 shadow-md z-10 shrink-0">
         <div className="size-10 rounded-full bg-[#25D366] flex items-center justify-center font-semibold">
           {tenant.business_name.charAt(0).toUpperCase()}
         </div>
@@ -396,7 +406,7 @@ export default function PublicChatPage() {
           e.preventDefault();
           send();
         }}
-        className="bg-[#F0F0F0] px-3 py-2 flex items-center gap-2 border-t border-gray-200"
+        className="bg-[#F0F0F0] px-3 py-2 flex items-center gap-2 border-t border-gray-200 shrink-0"
       >
         <input
           type="text"

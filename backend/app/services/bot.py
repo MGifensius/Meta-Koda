@@ -90,8 +90,8 @@ _CONFIRM_TOKENS = {
     "ya", "iya", "yaa", "oke", "okeoke", "okay", "okey", "ok", "sip",
     "sippp", "siap", "deal", "fix", "noted", "boleh", "bisa", "sabi",
     "gas", "gaspol", "kuy", "yuk", "ayuk", "ayo", "setuju", "mantap",
-    "mantul", "mantab", "betul", "bener", "yoi", "yes", "yup", "yeah",
-    "yaudah", "yowes", "lanjut",
+    "mantul", "mantab", "benar", "betul", "bener", "yoi", "yes",
+    "yup", "yeah", "yaudah", "yowes", "lanjut", "konfirmasi",
 }
 
 
@@ -226,7 +226,11 @@ INTENT HANDLING:
    → Step-by-step booking flow (JANGAN skip step, JANGAN auto-confirm tanpa preferensi seating + notes):
      a. Kumpulkan basic info: Tanggal, Jam, Jumlah orang.
      b. Panggil `get_availability` untuk cek meja.
-     c. SETELAH meja tersedia, TANYAKAN PREFERENSI AREA DUDUK secara natural — sebutkan area-area yang available dari hasil `get_availability` (misal: "Mau di area Indoor, Outdoor, Window, atau Private nih Kak?"). JANGAN langsung pilihkan meja tanpa tanya area dulu.
+     c. SETELAH meja tersedia, TANYAKAN PREFERENSI AREA DUDUK dalam KATEGORI — JANGAN list semua meja satu per satu. `get_availability` mengembalikan field `categories` (indoor/outdoor) dan `zones` (nama zona detail seperti "Teras Otella", "Poolside", "Indoor Otella"). Tawarkan customer dalam 2 level:
+       • Level 1 (selalu): tanyakan kategori dulu — "Mau yang indoor atau outdoor, Kak?". Cek `categories.indoor.available` dan `categories.outdoor.available` — kalau salah satu false, jangan tawarkan.
+       • Level 2 (kalau customer tanya detail atau zona indoor/outdoor punya banyak sub-zona): sebutkan zona-nya. Contoh kalau customer pilih outdoor dan ada Teras Otella + Poolside, tanyakan: "Mau di Teras Otella atau Poolside, Kak?".
+       • JANGAN list TO-1, TO-2, TO-3, dst. ke customer. Itu detail internal — customer cuma butuh tahu pilihan area.
+     PENTING: zona dengan kata "teras", "pool", "outdoor", "garden" = OUTDOOR. Zona dengan kata "indoor" / lainnya = INDOOR. Jadi kalau customer tanya "ada outdoor?", cek `categories.outdoor.available`, JANGAN bilang tidak ada hanya karena tidak ada zona literal bernama "Outdoor".
      d. SETELAH customer pilih area (atau bilang "bebas"/"terserah"), TANYAKAN REQUEST KHUSUS dengan satu kalimat singkat — contoh: "Ada request khusus, Kak? Misalnya alergi makanan, kursi bayi, perayaan ulang tahun, atau kebutuhan lain — kalau tidak ada juga gak apa." JANGAN skip step ini.
      e. Pilih meja dari area pilihan customer (kalau "bebas", ambil yang pertama tersedia).
      f. Konfirmasi LENGKAP semua detail dalam satu kalimat list: Tanggal, Jam, Jumlah Orang, Area, Meja, Nama, Notes (kalau ada).
@@ -263,7 +267,7 @@ RULES:
 - PENTING NAMA: Ketika customer memberikan nama mereka (contoh: "Joshua", "nama saya Marchelino", "saya Budi", "atas nama Marchel"), SEGERA panggil tool `update_customer_name` untuk menyimpan nama tersebut ke database. Setelah itu baru lanjutkan percakapan dengan menyapa mereka pakai nama.
 - Jika customer sudah memberikan SEMUA detail booking (tanggal, jam, jumlah orang, nama, area duduk, dan notes/permintaan khusus atau eksplisit "tidak ada notes"), langsung lanjut ke step konfirmasi (step f). Jika ada yang kurang — terutama area duduk atau notes — TANYAKAN dulu sebelum confirm.
 - PENTING: SEMUA kata konfirmasi setelah pesan konfirmasi (step f) memicu `create_booking` SEGERA. Daftar trigger (case-insensitive, anggap semua = "ya"):
-  "ya", "iya", "yaa", "oke", "okeoke", "okay", "okey", "ok", "sip", "sippp", "siap", "deal", "fix", "noted", "boleh", "bisa", "sabi", "gas", "gaspol", "kuy", "yuk", "ayuk", "ayo", "setuju", "mantap", "mantul", "mantab", "betul", "bener", "yoi", "yes", "yup", "yeah", "hm oke", "hmm sip", "oke deh", "oke kak", "yaudah", "yowes", "lanjut".
+  "ya", "iya", "yaa", "oke", "okeoke", "okay", "okey", "ok", "sip", "sippp", "siap", "deal", "fix", "noted", "boleh", "bisa", "sabi", "gas", "gaspol", "kuy", "yuk", "ayuk", "ayo", "setuju", "mantap", "mantul", "mantab", "benar", "betul", "bener", "yoi", "yes", "yup", "yeah", "hm oke", "hmm sip", "oke deh", "oke kak", "yaudah", "yowes", "lanjut", "konfirmasi".
   Kalau confirmation message (step f) sudah dikirim dan customer balas dengan SALAH SATU di atas → langsung panggil `create_booking`. JANGAN balas dengan greeting baru atau menu. JANGAN tanya ulang.
 - Tapi jika confirmation message BELUM dikirim (mis. masih ada area atau notes yang belum dikonfirmasi), JANGAN langsung create_booking — tanyakan dulu yang kurang.
 - Jika jumlah tamu melebihi kapasitas meja terbesar, informasikan kapasitas meja yang tersedia dan sarankan untuk menyesuaikan jumlah tamu.
@@ -471,11 +475,53 @@ def _tool_get_availability(date: str, time: str, pax: int) -> dict:
     ]
 
     if available:
+        # Group available tables by zone, and roll zones up into broad
+        # categories the LLM can offer the customer in a single line —
+        # restaurant zones map to Indoor/Outdoor based on the keyword
+        # in the zone name. Customers don't care that "Teras Otella" is
+        # technically a different label from "Outdoor"; they just want
+        # to pick "indoor or outdoor".
+        zones_summary: dict[str, dict] = {}
+        for t in available:
+            z = t["zone"] or "Main"
+            if z not in zones_summary:
+                z_lower = z.lower()
+                category = "indoor"
+                if any(k in z_lower for k in ("teras", "outdoor", "pool", "garden")):
+                    category = "outdoor"
+                zones_summary[z] = {
+                    "zone": z,
+                    "category": category,
+                    "table_ids": [],
+                    "count": 0,
+                }
+            zones_summary[z]["table_ids"].append(t["id"])
+            zones_summary[z]["count"] += 1
+
+        # Outdoor / indoor rollup so the LLM can answer "ada outdoor?"
+        # without having to map zone names itself.
+        categories: dict[str, list[str]] = {"indoor": [], "outdoor": []}
+        for zs in zones_summary.values():
+            categories[zs["category"]].extend(zs["table_ids"])
+
         return {
             "available": True,
             "tables": available,
             "count": len(available),
             "available_capacities": all_capacities,
+            "zones": list(zones_summary.values()),
+            "categories": {
+                "indoor": {
+                    "available": len(categories["indoor"]) > 0,
+                    "count": len(categories["indoor"]),
+                    "table_ids": categories["indoor"],
+                },
+                "outdoor": {
+                    "available": len(categories["outdoor"]) > 0,
+                    "count": len(categories["outdoor"]),
+                    "table_ids": categories["outdoor"],
+                },
+            },
         }
 
     # Suggest alternative times if no availability
