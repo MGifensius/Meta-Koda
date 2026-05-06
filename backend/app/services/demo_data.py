@@ -156,6 +156,13 @@ def seed_demo_tenant(db) -> dict:
     revenue_count = 0
     points_total = 0
 
+    # Build all revenue rows in memory first, then send as ONE batch
+    # insert. Was: 35-50 sequential round-trips at ~300ms each = 15s+
+    # spent here alone, which (combined with the ~30 other inserts
+    # below) was driving the demo refresh past HF's 30s connection
+    # timeout. Now: one round-trip per table.
+    revenue_rows: list[dict] = []
+    pending_loyalty: list[dict] = []  # {row_index, payload-without-source_id}
     for days_ago in range(7):
         day_dt = now - timedelta(days=days_ago)
         is_weekend = day_dt.weekday() in (5, 6)
@@ -179,24 +186,56 @@ def seed_demo_tenant(db) -> dict:
                     cust["tier"], 1.0,
                 )
                 points_awarded = int(base * multiplier)
-            tx = db.table("revenue_transactions").insert({
+            row_index = len(revenue_rows)
+            revenue_rows.append({
                 "tenant_id": tid,
                 "table_id": random.choice(table_ids),
                 "customer_id": cust["id"] if cust else None,
-                "amount": amount, "payment_method": payment,
-                "cover_count": covers, "points_awarded": points_awarded,
+                "amount": amount,
+                "payment_method": payment,
+                "cover_count": covers,
+                "points_awarded": points_awarded,
                 "settled_by": actor_id,
                 "settled_at": settled_at.isoformat(),
-            }).execute().data[0]
-            revenue_count += 1
+            })
             if cust and points_awarded > 0:
-                db.table("loyalty_ledger").insert({
-                    "tenant_id": tid, "customer_id": cust["id"],
-                    "delta": points_awarded, "reason": "earn_settle",
-                    "source_id": tx["id"], "created_by": actor_id,
+                pending_loyalty.append({
+                    "row_index": row_index,
+                    "tenant_id": tid,
+                    "customer_id": cust["id"],
+                    "delta": points_awarded,
+                    "reason": "earn_settle",
+                    "created_by": actor_id,
                     "created_at": settled_at.isoformat(),
-                }).execute()
+                })
                 points_total += points_awarded
+
+    # Single round-trip: insert all revenue rows, get their IDs back.
+    inserted_revenue: list[dict] = []
+    if revenue_rows:
+        inserted_revenue = (
+            db.table("revenue_transactions").insert(revenue_rows).execute().data
+            or []
+        )
+    revenue_count = len(inserted_revenue)
+
+    # Second round-trip: build loyalty ledger entries pointing at the
+    # newly-minted revenue ids and insert them as a batch.
+    if pending_loyalty and inserted_revenue:
+        loyalty_rows = []
+        for entry in pending_loyalty:
+            tx = inserted_revenue[entry["row_index"]]
+            loyalty_rows.append({
+                "tenant_id": entry["tenant_id"],
+                "customer_id": entry["customer_id"],
+                "delta": entry["delta"],
+                "reason": entry["reason"],
+                "source_id": tx["id"],
+                "created_by": entry["created_by"],
+                "created_at": entry["created_at"],
+            })
+        if loyalty_rows:
+            db.table("loyalty_ledger").insert(loyalty_rows).execute()
 
     today = now.date().isoformat()
     # Real Buranchi tables: TO-* (Teras Otella, outdoor 4-pax), PS-* (Poolside
@@ -211,19 +250,24 @@ def seed_demo_tenant(db) -> dict:
         ("6281234500003", "20:00", 6, "PL-1", "reserved", "outdoor", "Poolside meja segitiga preferred"),
         ("6281234500005", "21:00", 8, "IR-1", "reserved", "indoor",  "Indoor Otella - Birthday celebration"),
     ]
-    bookings_inserted = 0
+
+    # One round-trip to find every existing booking we'd otherwise duplicate.
+    spec_customer_ids = [
+        customers[s[0]]["id"] for s in booking_specs if s[0] in customers
+    ]
+    existing_bookings = db.table("bookings").select(
+        "customer_id, time"
+    ).eq("tenant_id", tid).eq("date", today).in_(
+        "customer_id", spec_customer_ids,
+    ).execute().data or []
+    existing_keys = {(b["customer_id"], b["time"]) for b in existing_bookings}
+
+    booking_rows: list[dict] = []
     for phone, t_str, pax, tbl, status, seating, notes in booking_specs:
         cust = customers.get(phone)
-        if not cust:
+        if not cust or (cust["id"], t_str) in existing_keys:
             continue
-        existing = db.table("bookings").select("id").eq(
-            "tenant_id", tid
-        ).eq("date", today).eq("time", t_str).eq(
-            "customer_id", cust["id"]
-        ).execute().data
-        if existing:
-            continue
-        db.table("bookings").insert({
+        booking_rows.append({
             "tenant_id": tid, "customer_id": cust["id"], "date": today,
             "time": t_str, "party_size": pax, "table_id": tbl,
             "guest_name": cust["name"], "customer_phone": phone,
@@ -231,41 +275,64 @@ def seed_demo_tenant(db) -> dict:
             "channel": "whatsapp",
             "confirmation_state": "confirmed" if status != "reserved" else "sent",
             "confirmation_sent_at": now.isoformat(),
-        }).execute()
-        bookings_inserted += 1
+        })
+    if booking_rows:
+        db.table("bookings").insert(booking_rows).execute()
+    bookings_inserted = len(booking_rows)
 
     convos = [
         ("6281234500001", "Sip kak, sampai ketemu nanti malam ya 😊", 0),
         ("6281234500003", "Mau tanya menu Mie Aceh masih ada gak ya?", 1),
         ("6281234500005", "Aku reservasi untuk anniversary nih 🎂", 0),
     ]
-    conv_count = 0
+    convo_customer_ids = [
+        customers[c[0]]["id"] for c in convos if c[0] in customers
+    ]
+    existing_convs = db.table("conversations").select(
+        "customer_id"
+    ).eq("tenant_id", tid).in_(
+        "customer_id", convo_customer_ids,
+    ).execute().data or []
+    existing_conv_cust = {c["customer_id"] for c in existing_convs}
+
+    convo_rows: list[dict] = []
+    convo_meta: list[tuple] = []  # (phone, last_msg, unread, cust_dict)
     for phone, last_msg, unread in convos:
         cust = customers.get(phone)
-        if not cust:
+        if not cust or cust["id"] in existing_conv_cust:
             continue
-        existing = db.table("conversations").select("id").eq(
-            "tenant_id", tid
-        ).eq("customer_id", cust["id"]).execute().data
-        if existing:
-            continue
-        conv = db.table("conversations").insert({
+        convo_rows.append({
             "tenant_id": tid, "customer_id": cust["id"],
             "last_message": last_msg, "last_message_time": "now()",
             "unread_count": unread, "status": "bot",
-        }).execute().data[0]
-        msgs = [
-            ("Halo, mau cek ada meja kosong ga ya buat malem ini?", "customer"),
-            (f"Halo Kak {cust['name']}! Aku Koda dari Buranchi 🌿 Bisa Kak, untuk berapa orang ya?", "bot"),
-            (last_msg, "customer" if unread > 0 else "bot"),
-        ]
-        for content, sender in msgs:
-            db.table("messages").insert({
-                "tenant_id": tid, "conversation_id": conv["id"],
-                "customer_id": cust["id"], "content": content,
-                "sender": sender, "read": sender != "customer" or unread == 0,
-            }).execute()
-        conv_count += 1
+        })
+        convo_meta.append((phone, last_msg, unread, cust))
+
+    inserted_convs = []
+    if convo_rows:
+        inserted_convs = (
+            db.table("conversations").insert(convo_rows).execute().data or []
+        )
+    conv_count = len(inserted_convs)
+
+    # Build all messages (3 per conversation) in one batch.
+    if inserted_convs:
+        message_rows: list[dict] = []
+        for conv, (_, last_msg, unread, cust) in zip(inserted_convs, convo_meta):
+            msgs = [
+                ("Halo, mau cek ada meja kosong ga ya buat malem ini?", "customer"),
+                (f"Halo Kak {cust['name']}! Aku Koda dari Buranchi 🌿 Bisa Kak, untuk berapa orang ya?", "bot"),
+                (last_msg, "customer" if unread > 0 else "bot"),
+            ]
+            for content, sender in msgs:
+                message_rows.append({
+                    "tenant_id": tid, "conversation_id": conv["id"],
+                    "customer_id": cust["id"], "content": content,
+                    "sender": sender,
+                    "read": sender != "customer" or unread == 0,
+                })
+        if message_rows:
+            db.table("messages").insert(message_rows).execute()
 
     return {
         "ok": True,
