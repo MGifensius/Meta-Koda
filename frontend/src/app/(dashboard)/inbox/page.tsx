@@ -190,7 +190,46 @@ export default function InboxPage() {
 
   const selectedConv = convs.find((c) => c.id === selectedConvId);
 
-  const filtered = convs.filter((c) =>
+  // Freeze the list order while a conversation is open. Without this,
+  // every 5s poll re-sorts by last_message_time and shifts the open
+  // conversation around the list, which feels like "the inbox jumped
+  // to a different chat" even though selectedConvId never changed.
+  // Captured once per opened conversation; cleared when nothing is
+  // selected so closing brings the list back to live ordering.
+  const frozenOrderRef = useRef<string[] | null>(null);
+  useEffect(() => {
+    if (!selectedConvId) {
+      frozenOrderRef.current = null;
+      return;
+    }
+    if (!frozenOrderRef.current) {
+      frozenOrderRef.current = convs.map((c) => c.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConvId]);
+
+  const ordered = (() => {
+    if (!frozenOrderRef.current) return convs;
+    const frozen = frozenOrderRef.current;
+    const byId = new Map(convs.map((c) => [c.id, c]));
+    const seen = new Set<string>();
+    const out: Conversation[] = [];
+    // Anything in the frozen order that still exists, in its original slot.
+    for (const id of frozen) {
+      const c = byId.get(id);
+      if (c) {
+        out.push(c);
+        seen.add(id);
+      }
+    }
+    // New conversations that appeared since the freeze go to the bottom.
+    for (const c of convs) {
+      if (!seen.has(c.id)) out.push(c);
+    }
+    return out;
+  })();
+
+  const filtered = ordered.filter((c) =>
     (c.customers?.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (c.customers?.phone || "").includes(search)
   );
