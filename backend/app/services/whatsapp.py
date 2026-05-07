@@ -10,6 +10,59 @@ def _safe(s: str) -> str:
     return s.encode("ascii", "replace").decode("ascii")
 
 
+def _record_outbound(tenant_id: str, phone: str, text: str) -> None:
+    """Persist an outbound bot message so it shows up in the inbox.
+
+    Without this, reminders / confirmations / marketing pings vanish
+    after sending — staff can only see customer-initiated conversations.
+    Best-effort: any DB error is swallowed so a transient failure here
+    doesn't block the actual WhatsApp send.
+    """
+    try:
+        from app.db import get_db
+        db = get_db()
+        cust = db.table("customers").select("id").eq(
+            "tenant_id", tenant_id
+        ).eq("phone", phone).limit(1).execute().data
+        if not cust:
+            return  # No customer row → no conversation to attach to.
+        customer_id = cust[0]["id"]
+
+        conv_rows = db.table("conversations").select("id").eq(
+            "tenant_id", tenant_id
+        ).eq("customer_id", customer_id).limit(1).execute().data
+        if conv_rows:
+            conv_id = conv_rows[0]["id"]
+            db.table("conversations").update({
+                "last_message": text,
+                "last_message_time": "now()",
+            }).eq("id", conv_id).execute()
+        else:
+            inserted = db.table("conversations").insert({
+                "tenant_id": tenant_id,
+                "customer_id": customer_id,
+                "last_message": text,
+                "last_message_time": "now()",
+                "unread_count": 0,
+                "status": "bot",
+            }).execute().data
+            if not inserted:
+                return
+            conv_id = inserted[0]["id"]
+
+        db.table("messages").insert({
+            "tenant_id": tenant_id,
+            "conversation_id": conv_id,
+            "customer_id": customer_id,
+            "content": text,
+            "sender": "bot",
+            "read": True,
+        }).execute()
+    except Exception as e:
+        # Inbox visibility is a nice-to-have; keep the send path bulletproof.
+        print(f"[record_outbound] failed: {e}", flush=True)
+
+
 async def send_message(
     phone: str,
     text: str,
@@ -26,6 +79,12 @@ async def send_message(
       3. If neither is configured, dry-run to console + return True.
     """
     print(f"[WA-SEND-START tenant={tenant_id}] -> {phone}", flush=True)
+
+    # Record into the inbox first so the staff sees the reminder/
+    # confirmation even when WA credentials aren't configured (dry-run
+    # mode, or per-tenant account not yet set up).
+    if tenant_id:
+        _record_outbound(tenant_id, phone, text)
 
     if tenant_id:
         from app.services.whatsapp_routing import get_active_account, send_via_account
