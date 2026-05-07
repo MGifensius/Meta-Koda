@@ -120,7 +120,6 @@ export default function FloorOperationPage() {
   // Customer linking
   const [billPhone, setBillPhone] = useState("");
   const [billNewName, setBillNewName] = useState("");
-  const [billRegister, setBillRegister] = useState(false);
   const [phoneMatch, setPhoneMatch] = useState<CustomerSummary | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -176,7 +175,6 @@ export default function FloorOperationPage() {
     setBillNotes("");
     setBillPhone("");
     setBillNewName("");
-    setBillRegister(false);
     setPhoneMatch(null);
   };
 
@@ -201,7 +199,9 @@ export default function FloorOperationPage() {
         }
         const j = await res.json();
         setPhoneMatch(j.customer ?? null);
-        if (j.customer) setBillRegister(false);
+        // Existing member found → clear any half-typed new-customer name
+        // so we don't accidentally try to register on settle.
+        if (j.customer) setBillNewName("");
       } catch {
         setPhoneMatch(null);
       } finally {
@@ -255,8 +255,14 @@ export default function FloorOperationPage() {
       );
       return;
     }
-    if (isWalkIn && billRegister && !billNewName.trim()) {
-      setActionError("Customer name is required to register a new member.");
+    // Phone unmatched + no name → block. The UI surfaces a "siapa namanya?"
+    // input the moment phoneMatch goes null with a phone of length ≥4.
+    const wantsRegister =
+      isWalkIn && billPhone.trim().length >= 4 && !phoneMatch;
+    if (wantsRegister && !billNewName.trim()) {
+      setActionError(
+        "Customer baru — isi nama dulu ya sebelum settle (nomor belum terdaftar).",
+      );
       return;
     }
     setSubmitting(true);
@@ -270,8 +276,10 @@ export default function FloorOperationPage() {
           cover_count: billCovers ? parseInt(billCovers, 10) : null,
           notes: billNotes.trim() || null,
           customer_phone: billPhone.trim() || null,
-          customer_name: billRegister ? billNewName.trim() : null,
-          register_new: billRegister,
+          // Auto-register when the phone wasn't found AND the cashier
+          // typed a name — no manual checkbox.
+          customer_name: wantsRegister ? billNewName.trim() : null,
+          register_new: wantsRegister,
         }),
       });
       if (!res.ok) {
@@ -528,29 +536,20 @@ export default function FloorOperationPage() {
                   {!lookupLoading &&
                     !phoneMatch &&
                     billPhone.trim().length >= 4 && (
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-[12px] cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={billRegister}
-                            onChange={(e) => setBillRegister(e.target.checked)}
-                            className="size-3.5 accent-primary"
-                          />
+                      <div className="space-y-1.5">
+                        <Label className="flex items-center gap-1.5 text-[12px]">
                           <UserPlus className="size-3.5 text-muted-foreground" />
-                          <span>Register as new member</span>
-                        </label>
-                        {billRegister && (
-                          <Input
-                            value={billNewName}
-                            onChange={(e) => setBillNewName(e.target.value)}
-                            placeholder="Customer name"
-                          />
-                        )}
-                        {!billRegister && (
-                          <p className="text-[11px] text-muted-foreground">
-                            No match — settling without points.
-                          </p>
-                        )}
+                          Customer baru — siapa namanya?
+                        </Label>
+                        <Input
+                          value={billNewName}
+                          onChange={(e) => setBillNewName(e.target.value)}
+                          placeholder="Nama lengkap"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Nomor belum terdaftar — kami daftarkan otomatis sebagai
+                          member baru begitu nama diisi.
+                        </p>
                       </div>
                     )}
                 </div>
@@ -607,7 +606,11 @@ export default function FloorOperationPage() {
                 const isWalkIn = !actionTable.booking?.customers;
                 const phoneOk = !isWalkIn || billPhone.trim().length >= 4;
                 const amountOk = parseAmount(billInput) > 0;
-                const nameOk = !(isWalkIn && billRegister) || !!billNewName.trim();
+                // Phone unmatched + no name yet → can't submit; the
+                // backend will reject anyway and we'd lose the bill.
+                const wantsRegister =
+                  isWalkIn && billPhone.trim().length >= 4 && !phoneMatch;
+                const nameOk = !wantsRegister || !!billNewName.trim();
                 const canSubmit = phoneOk && amountOk && nameOk && !submitting;
                 return (
                   <Button onClick={submitSettle} disabled={!canSubmit}>

@@ -72,7 +72,12 @@ def award_points_for_settle(
     ).eq("tenant_id", tenant_id).execute().data
     if not cust:
         return 0
-    tier = cust[0].get("tier") if cust[0].get("is_member") else None
+    # Non-members do not earn points at all. The base calc would still
+    # award them the floor(amount / rate) without a tier bonus, but
+    # product wants the loyalty program to be a member-only benefit.
+    if not cust[0].get("is_member"):
+        return 0
+    tier = cust[0].get("tier")
 
     points = calc_points(amount, settings, tier)
     if points <= 0:
