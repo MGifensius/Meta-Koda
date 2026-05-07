@@ -155,13 +155,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })();
 
+    // Track which user we last started loading a profile for. A late-
+    // arriving SIGNED_OUT for the OLD user could otherwise wipe the
+    // profile we just loaded for the NEW user (account-switch race).
+    let activeUserId: string | null = null;
+
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, sess) => {
       setSession(sess);
 
       // User signed out (or session lost) — show login.
       if (event === "SIGNED_OUT" || !sess) {
-        setProfile(null);
-        hasProfile = false;
+        // Only clear if we're not in the middle of loading a different
+        // user. Otherwise this could be a stale SIGNED_OUT for the
+        // user who just signed out, racing against the new SIGNED_IN.
+        if (!activeUserId) {
+          setProfile(null);
+          hasProfile = false;
+        }
         setIsLoading(false);
         return;
       }
@@ -181,15 +191,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Genuine sign-in / user update: refresh profile.
       // Only flip to loading-screen mode when we don't already have a
       // profile in memory; otherwise reload silently in the background.
+      const thisUserId = sess.user.id;
+      activeUserId = thisUserId;
       if (!hasProfile) setIsLoading(true);
       try {
         await loadProfile(sess.user.id, sess.user.email ?? "");
-        hasProfile = true;
+        // Only mark loaded if THIS user is still the latest one expected.
+        // Protects against a faster second sign-in landing while we were
+        // still loading the first.
+        if (activeUserId === thisUserId) {
+          hasProfile = true;
+        }
       } catch (err) {
         console.error("[auth] profile reload failed:", err);
-        setProfile(null);
+        if (activeUserId === thisUserId) setProfile(null);
       } finally {
-        setIsLoading(false);
+        if (activeUserId === thisUserId) setIsLoading(false);
       }
     });
 
@@ -201,6 +218,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(
     async (email: string, password: string) => {
+      // Clear any in-memory session FIRST so a half-completed previous
+      // signOut can't race with the new sign-in. Without this, switching
+      // accounts often required two attempts because supabase-js was
+      // still resolving the old SIGNED_OUT when the new credentials
+      // landed.
+      try {
+        await withTimeout(
+          supabase.auth.signOut(),
+          AUTH_BOOTSTRAP_TIMEOUT_MS,
+          "signOut(pre-signin)",
+        );
+      } catch {
+        // Already signed out, network blip, etc. — fine, fall through.
+      }
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { ok: false, error: error.message };
       return { ok: true };
@@ -214,8 +245,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // listener will reconcile when SIGNED_OUT actually fires.
     setProfile(null);
     setSession(null);
+    // Drop every per-tenant localStorage cache (mk_cache:*) so the next
+    // user can't see remnants of the previous user's inbox/floor/etc.
+    if (typeof window !== "undefined") {
+      try {
+        const keys: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith("mk_cache:")) keys.push(k);
+        }
+        for (const k of keys) localStorage.removeItem(k);
+      } catch {
+        // Storage disabled — non-fatal.
+      }
+    }
     try {
-      await supabase.auth.signOut();
+      // Cap the network call so a flaky logout can't leave the next
+      // signInWithPassword racing against an unresolved promise.
+      await withTimeout(
+        supabase.auth.signOut(),
+        AUTH_BOOTSTRAP_TIMEOUT_MS,
+        "signOut",
+      );
     } catch (err) {
       console.warn("[auth] signOut failed (state already cleared):", err);
     }
