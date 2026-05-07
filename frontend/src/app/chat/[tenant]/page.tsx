@@ -243,8 +243,8 @@ export default function PublicChatPage() {
 
   if (tenantError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#ECE5DD] px-4">
-        <div className="bg-white rounded-2xl px-8 py-10 max-w-sm text-center shadow-md">
+      <div className="min-h-dvh flex items-center justify-center bg-[#ECE5DD] px-4">
+        <div className="bg-white rounded-2xl px-6 py-8 sm:px-8 sm:py-10 w-full max-w-sm text-center shadow-md">
           <p className="text-[14px] text-red-600">{tenantError}</p>
         </div>
       </div>
@@ -253,7 +253,7 @@ export default function PublicChatPage() {
 
   if (!tenant) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#ECE5DD]">
+      <div className="min-h-dvh flex items-center justify-center bg-[#ECE5DD]">
         <Loader2 className="size-6 animate-spin text-[#075E54]" />
       </div>
     );
@@ -261,10 +261,10 @@ export default function PublicChatPage() {
 
   if (!registered) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#ECE5DD] px-4">
+      <div className="min-h-dvh flex items-center justify-center bg-[#ECE5DD] px-4 py-6">
         <form
           onSubmit={startChat}
-          className="bg-white rounded-2xl px-7 py-7 w-full max-w-sm shadow-md space-y-4"
+          className="bg-white rounded-2xl px-5 py-6 sm:px-7 sm:py-7 w-full max-w-sm shadow-md space-y-4"
         >
           <div className="text-center">
             <div className="size-14 rounded-full bg-[#25D366] mx-auto flex items-center justify-center mb-2">
@@ -290,7 +290,8 @@ export default function PublicChatPage() {
                 placeholder="contoh: Andi"
                 required
                 minLength={2}
-                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                // text-base = 16px so iOS Safari doesn't auto-zoom on focus.
+                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
               />
             </label>
             <label className="block">
@@ -304,7 +305,8 @@ export default function PublicChatPage() {
                 placeholder="08xxxxxxxxxx"
                 required
                 pattern="[0-9+\-]{8,20}"
-                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-[#25D366]"
+                inputMode="tel"
+                className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-[#25D366]"
               />
               <span className="text-[11px] text-gray-500 block mt-1">
                 Untuk identifikasi membership / poin loyalitas.
@@ -406,23 +408,27 @@ export default function PublicChatPage() {
           e.preventDefault();
           send();
         }}
-        className="bg-[#F0F0F0] px-3 py-2 flex items-center gap-2 border-t border-gray-200 shrink-0"
+        // pb adds safe-area padding so the input clears the home-indicator
+        // bar on iPhones / Android gesture nav. flex-shrink-0 keeps it
+        // pinned to the bottom while the messages div scrolls.
+        className="bg-[#F0F0F0] px-3 py-2 pb-[max(--spacing(2),env(safe-area-inset-bottom))] flex items-center gap-2 border-t border-gray-200 shrink-0"
       >
         {/* Input stays enabled while the bot is replying so the user
             can keep typing — only the submit is gated. The `if (sending)
-            return` guard inside send() prevents queued double-sends. */}
+            return` guard inside send() prevents queued double-sends.
+            text-base = 16px so iOS doesn't zoom on focus. */}
         <input
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ketik pesan…"
-          className="flex-1 bg-white rounded-full px-4 py-2 text-[14px] focus:outline-none"
+          className="flex-1 bg-white rounded-full px-4 py-2.5 text-base focus:outline-none"
           autoFocus
         />
         <button
           type="submit"
           disabled={sending || !draft.trim()}
-          className="size-10 rounded-full bg-[#25D366] hover:bg-[#1faa53] disabled:opacity-40 flex items-center justify-center transition-colors"
+          className="size-11 rounded-full bg-[#25D366] hover:bg-[#1faa53] disabled:opacity-40 flex items-center justify-center transition-colors shrink-0"
         >
           {sending ? (
             <Loader2 className="size-5 text-white animate-spin" />
