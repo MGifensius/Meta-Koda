@@ -448,6 +448,7 @@ INTENT HANDLING:
      3. konfirmasi ke customer mejanya pindah ke PL-2 (kapasitas 6)
      4. customer setuju → modify_booking(booking_id, party_size=5, table_id="PL-2")
    ⚠️ ATURAN MUTLAK: ketika modify, JANGAN ulang menyebutkan opsi meja yang sama berkali-kali. Kalau sudah dipilih, langsung modify_booking. Jangan oscillate.
+   ⚠️⚠️⚠️ DILARANG KLAIM SUKSES TANPA TOOL CALL. Kalau kamu bilang "Reservasi sudah berhasil diperbarui" / "berhasil diupdate" / "sudah saya ubah" / "sudah dimodifikasi" — kamu HARUS sudah benar-benar memanggil `modify_booking` dan menerima `success: true` dari result-nya. JANGAN halusinasi sukses. Kalau tool belum dipanggil di turn yang sama, JANGAN ucapkan kalimat sukses — panggil tool-nya dulu. Kalau tool return `success: false`, sampaikan error-nya ke customer secara jujur, jangan dibuat seolah-olah berhasil.
 
 2. MENU — Detect: "menu", "makan apa", "harga", "recommend", "enak"
    → Use get_menu tool to show current menu.
@@ -1348,11 +1349,28 @@ async def generate_reply(customer_phone: str, message: str,
 
             for tc in msg.tool_calls:
                 args = json.loads(tc.function.arguments)
+                # Log every tool invocation so we can verify in HF logs
+                # whether the LLM actually called the right tool. Critical
+                # for debugging the "bot claimed success without tool call"
+                # failure mode reported during modify_booking testing.
+                args_summary = ", ".join(
+                    f"{k}={v!r}"
+                    for k, v in args.items()
+                    if k not in ("customer_id",)
+                )[:200]
+                print(
+                    f"[bot-tool] {tc.function.name}({args_summary})",
+                    flush=True,
+                )
                 result = _execute_tool(
                     tc.function.name,
                     args,
                     {"conversation_id": conversation_id, "customer_id": customer_id},
                 )
+                # Log a short preview of the result so success/failure is
+                # visible without dumping the whole row.
+                preview = result if len(result) <= 200 else result[:200] + "…"
+                print(f"[bot-tool] → {preview}", flush=True)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
