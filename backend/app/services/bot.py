@@ -423,11 +423,31 @@ INTENT HANDLING:
    → If conflict detected, suggest next 3 closest available slots.
    → JIKA customer dari awal sudah kasih semua info termasuk preferensi area + notes, silahkan langsung ke step f tanpa nanya ulang.
 
-1b. CANCEL / CHECK / RESCHEDULE BOOKING — Detect: "batal", "cancel", "gabisa dateng", "reschedule", "pindah jam", "booking saya yang mana"
+1b. CANCEL / CHECK BOOKING — Detect: "batal", "cancel", "gabisa dateng", "booking saya yang mana"
    → ALWAYS call `list_customer_bookings` FIRST to see what bookings they actually have. JANGAN menebak atau bilang "tidak ada reservasi" tanpa memanggil tool ini.
    → If `list_customer_bookings` returns empty, baru bilang tidak ada reservasi aktif.
    → If returns one booking, konfirmasi detail-nya (tanggal, jam, meja) lalu panggil `cancel_booking` setelah customer setuju.
    → If returns multiple, sebutkan semuanya dan tanya yang mana mau dibatalkan sebelum memanggil `cancel_booking`.
+
+1c. MODIFY BOOKING (TAMBAH ORANG / GANTI MEJA / GANTI JAM / GANTI TANGGAL / TAMBAH NOTES)
+   Detect: "mau nambah X orang", "tiba-tiba jadi X orang", "ganti meja", "pindah jam", "ganti tanggal", "tambahin notes / catatan", "alergi", "ada tambahan"
+   ⚠️ JANGAN PERNAH cancel + create_booking ulang. Pakai `modify_booking` — ini in-place update. Kalau kamu cancel duluan, mejanya release dan bisa direbut customer lain dalam detik berikutnya.
+   Flow:
+     a. Panggil `list_customer_bookings` untuk dapat booking_id (kalau ada lebih dari 1, tanya customer yang mana).
+     b. Identifikasi field yang berubah:
+        • Tambah orang → `party_size` baru. Kalau > kapasitas meja saat ini, juga butuh `table_id` baru.
+        • Ganti jam/tanggal → `time` / `date`. Cek availability dulu.
+        • Update notes → `notes` saja.
+     c. Kalau perlu meja baru: panggil `get_availability` dengan pax baru + tanggal+jam. JANGAN ngarang nama meja.
+     d. Konfirmasi perubahan dengan customer (sebutkan: dari X orang/meja Y → jadi N orang/meja Z).
+     e. SETELAH customer setuju → panggil `modify_booking` dengan HANYA field yang berubah + booking_id.
+     f. Sampaikan hasilnya ringkas (booking_id, jam, meja baru).
+   Contoh urutan tool calls untuk "saya jadi 5 orang nih, awalnya 1 di PS-4":
+     1. list_customer_bookings → ambil booking_id
+     2. get_availability(date, time, pax=5) → lihat zones.outdoor / kategori
+     3. konfirmasi ke customer mejanya pindah ke PL-2 (kapasitas 6)
+     4. customer setuju → modify_booking(booking_id, party_size=5, table_id="PL-2")
+   ⚠️ ATURAN MUTLAK: ketika modify, JANGAN ulang menyebutkan opsi meja yang sama berkali-kali. Kalau sudah dipilih, langsung modify_booking. Jangan oscillate.
 
 2. MENU — Detect: "menu", "makan apa", "harga", "recommend", "enak"
    → Use get_menu tool to show current menu.
@@ -577,6 +597,33 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "booking_id": {"type": "string", "description": "UUID of the booking to cancel (from list_customer_bookings output)."},
+            },
+            "required": ["booking_id"],
+        },
+    },
+    {
+        "name": "modify_booking",
+        "description": (
+            "Modify an existing reservation in place. Use this — NOT cancel + create_booking — "
+            "when the customer wants to add/remove people, change time, change date, change "
+            "the table, or update notes on a booking that already exists. "
+            "Workflow: (1) list_customer_bookings to find the booking_id, "
+            "(2) if party_size goes up and won't fit the current table, call get_availability "
+            "with the new pax/date/time to pick a new table_id, "
+            "(3) confirm the changes with the customer, then call modify_booking with ONLY "
+            "the fields that changed. "
+            "Pass party_size and table_id together when growing the party. The tool will "
+            "refuse if the new table can't fit the new pax."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "booking_id": {"type": "string", "description": "UUID of the existing booking."},
+                "party_size": {"type": "integer", "description": "New party size, if changed."},
+                "table_id": {"type": "string", "description": "New table id (e.g. PL-2), if the table is changing."},
+                "time": {"type": "string", "description": "New HH:MM time, if changed."},
+                "date": {"type": "string", "description": "New YYYY-MM-DD date, if changed."},
+                "notes": {"type": "string", "description": "Updated notes — set to empty string to clear."},
             },
             "required": ["booking_id"],
         },
@@ -909,6 +956,153 @@ def _tool_cancel_booking(customer_id: str, booking_id: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
+def _tool_modify_booking(
+    customer_id: str,
+    booking_id: str,
+    party_size: int | None = None,
+    table_id: str | None = None,
+    time: str | None = None,
+    date: str | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Update an existing booking in place. The bot calls this when the
+    customer wants to add/remove people, change time/date, swap tables,
+    or update notes — instead of cancel+create which loses history and
+    can race with reminders.
+
+    Validation:
+      • Booking must exist, belong to the customer, and be in
+        reserved/occupied state.
+      • If party_size grows beyond the current (or new) table's
+        capacity, refuse with the table's actual capacity so the LLM
+        can ask the customer to pick a bigger table or split.
+      • If the new table is already booked at that date+time by
+        someone else, refuse with the conflicting booking_id.
+    """
+    if not booking_id:
+        return {"success": False, "error": "Missing booking_id"}
+    db = get_db()
+    try:
+        existing = db.table("bookings").select(
+            "id, customer_id, status, date, time, table_id, party_size, notes, seating"
+        ).eq("id", booking_id).eq("tenant_id", _tid()).execute().data
+        if not existing:
+            return {"success": False, "error": "Booking not found"}
+        row = existing[0]
+        if customer_id and row.get("customer_id") != customer_id:
+            return {"success": False, "error": "Booking belongs to another customer"}
+        if row.get("status") not in ("reserved", "occupied"):
+            return {
+                "success": False,
+                "error": f"Cannot modify booking in status '{row.get('status')}'",
+            }
+
+        new_pax = int(party_size) if party_size is not None else row["party_size"]
+        new_date = date or row["date"]
+        new_time = time or row["time"]
+        new_table_id = table_id or row["table_id"]
+
+        # Capacity / conflict check on the target table.
+        if new_table_id:
+            tbl = db.table("tables").select("id, capacity, zone").eq(
+                "tenant_id", _tid()
+            ).eq("id", new_table_id).execute().data
+            if not tbl:
+                return {"success": False, "error": f"Table {new_table_id} not found"}
+            if new_pax > tbl[0]["capacity"]:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Table {new_table_id} only fits {tbl[0]['capacity']} pax, "
+                        f"but party_size is {new_pax}. Pick a bigger table_id."
+                    ),
+                    "current_table_capacity": tbl[0]["capacity"],
+                }
+            if new_table_id != row["table_id"] or new_date != row["date"] or new_time != row["time"]:
+                conflict = db.table("bookings").select("id, customer_id").eq(
+                    "tenant_id", _tid()
+                ).eq("date", new_date).eq("time", new_time).eq(
+                    "table_id", new_table_id,
+                ).neq("id", booking_id).in_(
+                    "status", ["reserved", "occupied"],
+                ).execute().data or []
+                if conflict:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Table {new_table_id} is already booked at {new_date} "
+                            f"{new_time}. Pick a different table or time."
+                        ),
+                        "conflicting_booking_id": conflict[0]["id"],
+                    }
+
+        # Build the patch — only include fields the caller actually wanted to change.
+        patch: dict = {}
+        if party_size is not None:
+            patch["party_size"] = new_pax
+        if table_id is not None:
+            patch["table_id"] = new_table_id
+            # Re-derive seating from the new table's zone (same mapping the
+            # create path uses). Keeps bookings_seating_check happy.
+            zone = (tbl[0].get("zone") or "").lower()
+            if any(k in zone for k in ("teras", "pool", "outdoor", "garden")):
+                patch["seating"] = "outdoor"
+            elif "window" in zone:
+                patch["seating"] = "window"
+            elif "private" in zone or "vip" in zone:
+                patch["seating"] = "private"
+            else:
+                patch["seating"] = "indoor"
+        if time is not None:
+            patch["time"] = new_time
+        if date is not None:
+            patch["date"] = new_date
+        if notes is not None:
+            patch["notes"] = notes
+
+        if not patch:
+            return {"success": False, "error": "No fields to update"}
+
+        # If the table changed, free the old table reservation hold.
+        old_table_id = row.get("table_id")
+        if table_id is not None and old_table_id and old_table_id != new_table_id:
+            try:
+                db.table("tables").update({
+                    "status": "available",
+                    "current_booking_id": None,
+                }).eq("id", old_table_id).eq(
+                    "tenant_id", _tid()
+                ).eq("current_booking_id", booking_id).execute()
+            except Exception:
+                # Best-effort — reconcile job will fix any drift.
+                pass
+
+        db.table("bookings").update(patch).eq("id", booking_id).eq(
+            "tenant_id", _tid()
+        ).execute()
+
+        # Re-apply the reservation policy so the new table flips to
+        # 'reserved' if the booking is within the 3-hour window.
+        try:
+            from app.services.reservation_policy import apply_booking_insert_policy
+            apply_booking_insert_policy(db, booking_id, new_table_id, new_date, new_time)
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "booking_id": booking_id,
+            "date": new_date,
+            "time": new_time,
+            "party_size": new_pax,
+            "table_id": new_table_id,
+            "notes": patch.get("notes", row.get("notes")),
+            "changed_fields": list(patch.keys()),
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 TOOL_HANDLERS = {
     "get_availability": lambda args: _tool_get_availability(args["date"], args["time"], args["pax"]),
     "get_customer_profile": lambda args: _tool_get_customer_profile(args["phone"]),
@@ -1007,6 +1201,16 @@ def _execute_tool(name: str, args: dict, context: dict = None) -> str:
         result = _tool_list_customer_bookings(cust_id)
     elif name == "cancel_booking":
         result = _tool_cancel_booking(cust_id, args.get("booking_id", ""))
+    elif name == "modify_booking":
+        result = _tool_modify_booking(
+            customer_id=cust_id,
+            booking_id=args.get("booking_id", ""),
+            party_size=args.get("party_size"),
+            table_id=args.get("table_id"),
+            time=args.get("time"),
+            date=args.get("date"),
+            notes=args.get("notes"),
+        )
     elif name in TOOL_HANDLERS:
         result = TOOL_HANDLERS[name](args)
     else:
