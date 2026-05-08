@@ -24,42 +24,41 @@ export default function SettingsLayout({
     href === "/settings" ? path === "/settings" : path.startsWith(href);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <p className="text-[13px] text-muted-foreground">
-          Atur profil restoran, meja, dan perilaku AI Bot.
-        </p>
-      </div>
+    // Two-column grid that anchors directly to the dashboard's scroll
+    // container (no wrapping space-y / title block above), so the nav
+    // can sticky-pin to top-0 immediately. items-start + self-start
+    // keeps the nav at its natural height; bg-background + the negative
+    // top margin make the sticky nav visually cover the scroll
+    // container's top padding when it pins.
+    <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
+      <nav className="sticky top-0 self-start z-10 space-y-1 -mt-5 pt-5 pb-3 bg-background">
+        <div className="px-3 pb-3 mb-1 border-b border-border/60">
+          <h1 className="text-[15px] font-semibold leading-tight">Settings</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Restoran &amp; bot
+          </p>
+        </div>
+        {SECTIONS.map((s) => {
+          const Icon = s.icon;
+          const active = isActive(s.href);
+          return (
+            <Link
+              key={s.href}
+              href={s.href}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-[13px] transition-colors ${
+                active
+                  ? "bg-muted font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              }`}
+            >
+              <Icon className="size-4" />
+              <span>{s.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-      <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
-        {/* sticky top-4 pins the side nav inside the dashboard's scroll
-            container so it stays visible while the right pane scrolls.
-            self-start prevents the grid item from stretching to match
-            the content's height (which would defeat sticky). */}
-        <nav className="sticky top-4 self-start space-y-1">
-          {SECTIONS.map((s) => {
-            const Icon = s.icon;
-            const active = isActive(s.href);
-            return (
-              <Link
-                key={s.href}
-                href={s.href}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-[13px] transition-colors ${
-                  active
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                }`}
-              >
-                <Icon className="size-4" />
-                <span>{s.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="min-w-0">{children}</div>
-      </div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
