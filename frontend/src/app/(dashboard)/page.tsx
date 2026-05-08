@@ -122,7 +122,10 @@ export default function Page() {
     if (isLoading) return;
     if (!tenantId || role === "super_admin" || role === "cashier") return;
     fetchStats();
-    const interval = setInterval(fetchStats, 10000);
+    // 5s polling — dashboard tiles refresh fast enough that a fresh
+    // booking from the bot or a settle on the floor reflects almost
+    // immediately, but not so often that we hammer the API.
+    const interval = setInterval(fetchStats, 5000);
     return () => clearInterval(interval);
     // fetchStats closes over tenantId/role; deps cover the actual triggers.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -163,6 +163,9 @@ export default function BookingsPage() {
   }, [tenantId]);
 
   useEffect(() => {
+    // Gate on tenantId so the first fetch doesn't fire before the auth
+    // token is cached (which would 401 and redirect to login).
+    if (!tenantId) return;
     fetchAll();
     fetchCustomers();
     apiFetch("/settings")
@@ -171,9 +174,11 @@ export default function BookingsPage() {
         if (s?.opening_hours) setOpeningHours(s.opening_hours);
       })
       .catch(() => undefined);
-    const interval = setInterval(fetchAll, 5000);
+    // 3s polling — bookings is a live operational view, staff need new
+    // reservations from the bot to land near-instantly during a service.
+    const interval = setInterval(fetchAll, 3000);
     return () => clearInterval(interval);
-  }, [fetchAll, fetchCustomers]);
+  }, [tenantId, fetchAll, fetchCustomers]);
 
   /* ── actions ── */
 
@@ -646,7 +651,7 @@ export default function BookingsPage() {
 
       <div className="grid grid-cols-[1fr_280px] gap-4">
         {/* Left: booking tabs */}
-        <Tabs defaultValue="today">
+        <Tabs defaultValue="upcoming">
           <TabsList>
             <TabsTrigger value="today">
               Hari Ini ({todayBookings.length})

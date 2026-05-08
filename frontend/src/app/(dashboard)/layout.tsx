@@ -26,16 +26,14 @@ function LoadingScreen() {
 
 const t: Record<string, string> = {
   "/": "Dashboard", "/customers": "Customers", "/bookings": "Bookings",
-  "/marketing": "Marketing", "/loyalty": "Loyalty", "/floor": "Floor", "/bot": "AI Bot",
-  "/inbox": "Inbox", "/settings": "Settings", "/menu": "Menu",
+  "/floor": "Floor", "/inbox": "Inbox", "/settings": "Settings",
   "/admin": "Super Admin",
 };
 
 const subcrumb: Record<string, string> = {
   "/": "Overview", "/customers": "Customers", "/bookings": "Reservations",
-  "/marketing": "Marketing", "/loyalty": "Loyalty Program", "/floor": "Floor Operation",
-  "/bot": "AI Bot", "/inbox": "Conversations", "/settings": "Workspace Settings",
-  "/menu": "Menu Management",
+  "/floor": "Floor", "/inbox": "Conversations",
+  "/settings": "Workspace Settings",
   "/admin": "Tenants & Subscriptions",
 };
 

@@ -29,6 +29,8 @@ type Settings = {
   instagram: string;
   promo_text: string;
   welcome_message: string;
+  bot_extra_instructions?: string;
+  bot_faq?: { question: string; answer: string }[];
 };
 
 export default function SettingsPage() {
@@ -49,6 +51,8 @@ export default function SettingsPage() {
     instagram: "",
     promo_text: "",
     welcome_message: "",
+    bot_extra_instructions: "",
+    bot_faq: [],
   });
 
   // Derived fields for UI
@@ -481,82 +485,140 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
-        {/* AI Bot */}
+        {/* AI Bot — owner-curated knowledge that the bot picks up on every reply */}
         <TabsContent value="bot">
           <div className="space-y-4">
-            <div className="border rounded-xl bg-card p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-medium">Bot Status</h2>
-                  <p className="text-[13px] text-muted-foreground">Bot akan otomatis merespon pesan masuk dari customer</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-medium px-2 py-0.5 rounded text-green-700 bg-green-50">Aktif</span>
-                  <Switch defaultChecked />
-                </div>
+            <div className="border rounded-xl bg-card p-5 space-y-3">
+              <div>
+                <h2 className="text-sm font-medium">Welcome Message</h2>
+                <p className="text-[12px] text-muted-foreground">
+                  Pesan pertama bot saat customer baru menyapa.
+                </p>
               </div>
-            </div>
-
-            <div className="border rounded-xl bg-card p-5 space-y-4">
-              <h2 className="text-sm font-medium">Personality</h2>
-              <div className="space-y-1.5">
-                <Label>Welcome Message</Label>
-                <Input
-                  value={settings.welcome_message}
-                  onChange={(e) => updateField("welcome_message", e.target.value)}
-                  placeholder="Halo! Selamat datang."
-                />
-                <p className="text-[11px] text-muted-foreground">Pesan pertama yang dikirim bot saat customer baru memulai percakapan</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Tagline / Persona</Label>
-                <Textarea
-                  value={settings.tagline}
-                  onChange={(e) => updateField("tagline", e.target.value)}
-                  rows={2}
-                />
-                <p className="text-[11px] text-muted-foreground">Instruksi kepribadian dan gaya bahasa bot. Bot menggunakan GPT-4o dan memahami Bahasa Indonesia + slang.</p>
-              </div>
+              <Input
+                value={settings.welcome_message}
+                onChange={(e) => updateField("welcome_message", e.target.value)}
+                placeholder="Halo! Selamat datang."
+              />
             </div>
 
             <div className="border rounded-xl bg-card p-5 space-y-3">
-              <h2 className="text-sm font-medium mb-3">Kemampuan</h2>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-medium">Auto Booking</p>
-                  <p className="text-[13px] text-muted-foreground">Bot bisa membuat booking otomatis dari percakapan</p>
-                </div>
-                <Switch defaultChecked />
+              <div>
+                <h2 className="text-sm font-medium">Instruksi Tambahan untuk Bot</h2>
+                <p className="text-[12px] text-muted-foreground">
+                  Tulis aturan / pengetahuan / preferensi spesifik restoran kamu.
+                  Bot akan baca ini di setiap balasan dan ikut sebagai prioritas
+                  tertinggi (override default kalau bertentangan).
+                  <br />
+                  Contoh: <span className="font-mono text-[11px]">
+                    Private room minimum charge Rp 500.000 per meja. Selalu
+                    rekomendasikan dessert kalau group ≥ 4 orang. Alergi
+                    kacang harus selalu dicatat. Kalau customer tanya parking,
+                    bilang valet gratis di lobby.
+                  </span>
+                </p>
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-medium">Auto Loyalty Check</p>
-                  <p className="text-[13px] text-muted-foreground">Bot bisa cek dan informasikan poin loyalty customer</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-medium">Reminder Reservasi</p>
-                  <p className="text-[13px] text-muted-foreground">Bot kirim reminder H-1 dan H-3 jam sebelum reservasi</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-medium">Feedback Request</p>
-                  <p className="text-[13px] text-muted-foreground">Bot minta feedback 5 jam setelah reservasi selesai</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
+              <Textarea
+                value={settings.bot_extra_instructions ?? ""}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    bot_extra_instructions: e.target.value,
+                  }))
+                }
+                rows={6}
+                placeholder="Tulis aturan / fakta khusus restoran kamu di sini…"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Semakin sering kamu pakai bot dan menemukan jawaban yang
+                kurang tepat, tambahkan koreksi di sini — bot langsung pintar
+                di balasan berikutnya.
+              </p>
             </div>
 
             <div className="border rounded-xl bg-card p-5 space-y-3">
-              <h2 className="text-sm font-medium">Eskalasi</h2>
-              <div className="space-y-1.5">
-                <Label>Keyword Eskalasi ke Agent</Label>
-                <Input defaultValue="komplain, manager, marah, refund" />
-                <p className="text-[11px] text-muted-foreground">Jika pesan customer mengandung keyword ini, bot akan escalate ke agent manusia</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-medium">FAQ Customer</h2>
+                  <p className="text-[12px] text-muted-foreground">
+                    Pertanyaan yang sering ditanya — bot akan jawab sesuai
+                    pasangan Q/A yang kamu isi di sini, persis kata-kata kamu.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setSettings((s) => ({
+                      ...s,
+                      bot_faq: [
+                        ...(s.bot_faq ?? []),
+                        { question: "", answer: "" },
+                      ],
+                    }))
+                  }
+                >
+                  + Tambah FAQ
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {(settings.bot_faq ?? []).length === 0 && (
+                  <p className="text-[12px] text-muted-foreground italic">
+                    Belum ada FAQ. Klik &ldquo;Tambah FAQ&rdquo; untuk memulai.
+                  </p>
+                )}
+                {(settings.bot_faq ?? []).map((item, i) => (
+                  <div key={i} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 space-y-1.5">
+                        <Label className="text-[11px]">Pertanyaan</Label>
+                        <Input
+                          value={item.question}
+                          placeholder="Misal: Ada parkir gratis?"
+                          onChange={(e) =>
+                            setSettings((s) => ({
+                              ...s,
+                              bot_faq: (s.bot_faq ?? []).map((it, j) =>
+                                j === i ? { ...it, question: e.target.value } : it,
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 mt-6"
+                        onClick={() =>
+                          setSettings((s) => ({
+                            ...s,
+                            bot_faq: (s.bot_faq ?? []).filter(
+                              (_, j) => j !== i,
+                            ),
+                          }))
+                        }
+                      >
+                        Hapus
+                      </Button>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[11px]">Jawaban</Label>
+                      <Textarea
+                        value={item.answer}
+                        rows={2}
+                        placeholder="Misal: Iya Kak, parkir gratis di lobby — ada valet."
+                        onChange={(e) =>
+                          setSettings((s) => ({
+                            ...s,
+                            bot_faq: (s.bot_faq ?? []).map((it, j) =>
+                              j === i ? { ...it, answer: e.target.value } : it,
+                            ),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 

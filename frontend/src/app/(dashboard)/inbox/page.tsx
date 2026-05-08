@@ -88,10 +88,18 @@ export default function InboxPage() {
   );
 
   useEffect(() => {
+    // Wait for tenantId — apiFetch needs the auth token to be cached,
+    // which happens at the same time tenantId becomes available. Firing
+    // earlier risks a 401 + redirect-to-login race during the auth
+    // bootstrap window (the cause of "no chats for a few seconds even
+    // though chats exist").
+    if (!tenantId) return;
     fetchConversations();
-    const interval = setInterval(fetchConversations, 5000);
+    // 2s polling — inbox is the live customer-channel surface; staff
+    // expect new messages to appear at WhatsApp speed.
+    const interval = setInterval(fetchConversations, 2000);
     return () => clearInterval(interval);
-  }, [fetchConversations]);
+  }, [tenantId, fetchConversations]);
 
   const markAsRead = useCallback(async (convId: string) => {
     try {
@@ -122,7 +130,10 @@ export default function InboxPage() {
       }
       fetchMessages(selectedConvId);
       markAsRead(selectedConvId);
-      const interval = setInterval(() => fetchMessages(selectedConvId), 3000);
+      // 1.5s polling on the OPEN conversation — staff are watching the
+      // bot reply land in real time. Cheap fetch (one conversation's
+      // messages), justifies the tight interval.
+      const interval = setInterval(() => fetchMessages(selectedConvId), 1500);
       return () => clearInterval(interval);
     }
   }, [selectedConvId, fetchMessages, markAsRead, tenantId]);

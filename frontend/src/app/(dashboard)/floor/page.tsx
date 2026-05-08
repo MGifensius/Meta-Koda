@@ -151,10 +151,16 @@ export default function FloorOperationPage() {
   }, [tenantId]);
 
   useEffect(() => {
+    // Gate on tenantId — same reason as inbox/bookings: avoid the
+    // first-fetch 401 race during the auth bootstrap window.
+    if (!tenantId) return;
     fetchAll();
-    const id = setInterval(fetchAll, 8000);
+    // 3s polling — floor is the live ops surface (cashier watching
+    // table state during service). Slower polling makes table flips
+    // (booking → seated → settle → cleaning) feel laggy.
+    const id = setInterval(fetchAll, 3000);
     return () => clearInterval(id);
-  }, [fetchAll]);
+  }, [tenantId, fetchAll]);
 
   const grouped = useMemo(() => {
     const zones: Record<string, RestaurantTable[]> = {};

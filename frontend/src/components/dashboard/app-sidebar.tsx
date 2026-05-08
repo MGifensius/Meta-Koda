@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, CalendarDays, LayoutGrid,
-  MessageSquare, Megaphone, Gift, Settings, LogOut, UtensilsCrossed,
+  MessageSquare, Settings, LogOut,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup,
@@ -16,19 +16,19 @@ import {
 import { useAuth } from "@/lib/role-context";
 import { apiFetch } from "@/lib/api-client";
 
+// V1 launch surface only. Menu, Marketing, Loyalty, and the standalone
+// Bot page are archived under (dashboard)/_archived_* — files stay in
+// the repo (so we can re-enable for V2) but the underscore prefix makes
+// Next.js skip them at build time, keeping the Vercel bundle light.
 const workspace = [
   { t: "Dashboard", h: "/", i: LayoutDashboard },
   { t: "Customers", h: "/customers", i: Users },
   { t: "Bookings", h: "/bookings", i: CalendarDays, badge: 0 },
-  { t: "Menu", h: "/menu", i: UtensilsCrossed },
-  { t: "Floor Operation", h: "/floor", i: LayoutGrid },
+  { t: "Floor", h: "/floor", i: LayoutGrid },
   { t: "Inbox", h: "/inbox", i: MessageSquare, badge: 0 },
 ];
 
-const growth = [
-  { t: "Marketing", h: "/marketing", i: Megaphone },
-  { t: "Loyalty", h: "/loyalty", i: Gift },
-];
+const growth: { t: string; h: string; i: typeof LayoutDashboard }[] = [];
 
 // Friendly labels for the role chip in sidebar / breadcrumb.
 export const ROLE_LABEL: Record<string, string> = {
@@ -46,12 +46,10 @@ const roleAccess: Record<string, string[]> = {
   super_admin: [...workspace, ...growth].map((n) => n.t).concat(["Settings"]),
   // Tenant owner — full access inside their tenant.
   tenant_owner: [...workspace, ...growth].map((n) => n.t).concat(["Settings"]),
-  // Admin — daily ops. No floor operation, no Menu CRUD, no Settings.
-  admin: ["Dashboard", "Inbox", "Bookings", "Customers", "Marketing", "Loyalty"],
-  // Cashier — Floor Operation only.
-  cashier: ["Dashboard", "Floor Operation"],
-  // Marketing — outreach + customers + loyalty.
-  marketing: ["Dashboard", "Inbox", "Customers", "Marketing", "Loyalty"],
+  // Admin — daily ops.
+  admin: ["Dashboard", "Inbox", "Bookings", "Customers"],
+  // Cashier — Floor only.
+  cashier: ["Dashboard", "Floor"],
   // Staff — limited ops.
   staff: ["Dashboard", "Bookings", "Customers"],
 };

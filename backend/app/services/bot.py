@@ -1294,8 +1294,40 @@ async def generate_reply(customer_phone: str, message: str,
         f"\n{table_info}\n"
     )
 
+    # Owner-curated bot knowledge (Settings → Bot tab). Anything the
+    # owner writes here goes straight into the system prompt so the bot
+    # answers in their voice and respects their domain rules. This is
+    # the "semakin sering dipakai semakin pintar" surface — the owner
+    # observes a gap, types a new instruction, next message uses it.
+    bot_extras = ""
+    extra_text = (settings.get("bot_extra_instructions") or "").strip()
+    if extra_text:
+        bot_extras += (
+            "\n\nINSTRUKSI TAMBAHAN DARI PEMILIK RESTORAN "
+            "(prioritas tinggi, override default kalau bertentangan):\n"
+            f"{extra_text}\n"
+        )
+    faq = settings.get("bot_faq") or []
+    if isinstance(faq, list) and faq:
+        lines = ["\n\nFAQ DARI PEMILIK RESTORAN (jawab persis seperti ini kalau ditanya):"]
+        for item in faq:
+            if not isinstance(item, dict):
+                continue
+            q = (item.get("question") or "").strip()
+            a = (item.get("answer") or "").strip()
+            if q and a:
+                lines.append(f"- Q: {q}")
+                lines.append(f"  A: {a}")
+        if len(lines) > 1:
+            bot_extras += "\n".join(lines) + "\n"
+
     biz_name = settings.get("name") or "Restoran"
-    system_prompt = _build_system_prompt(biz_name) + settings_context + customer_context
+    system_prompt = (
+        _build_system_prompt(biz_name)
+        + settings_context
+        + bot_extras
+        + customer_context
+    )
 
     # Build OpenAI messages — last 14 messages of history. The bot used
     # to forget facts the customer stated 4-5 turns ago (e.g. "jam 7
