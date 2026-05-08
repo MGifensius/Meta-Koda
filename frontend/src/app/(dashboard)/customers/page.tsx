@@ -172,7 +172,7 @@ export default function CustomersPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-[1fr_320px] gap-4">
+      <div className="grid grid-cols-[1fr_320px] gap-4 items-start">
         <div className="border rounded-xl bg-card">
           <table className="w-full">
             <thead>
