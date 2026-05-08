@@ -24,20 +24,13 @@ export default function SettingsLayout({
     href === "/settings" ? path === "/settings" : path.startsWith(href);
 
   return (
-    // Two-column grid that anchors directly to the dashboard's scroll
-    // container (no wrapping space-y / title block above), so the nav
-    // can sticky-pin to top-0 immediately. items-start + self-start
-    // keeps the nav at its natural height; bg-background + the negative
-    // top margin make the sticky nav visually cover the scroll
-    // container's top padding when it pins.
+    // Side nav stays anchored at top-0 of the dashboard's overflow-auto
+    // scroll container. No title block in the nav — the dashboard
+    // breadcrumb above already says "… / Settings / <section>". No
+    // negative margin — sits cleanly inside the scroll container's
+    // py-5 padding instead of fighting with the breadcrumb header.
     <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
-      <nav className="sticky top-0 self-start z-10 space-y-1 -mt-5 pt-5 pb-3 bg-background">
-        <div className="px-3 pb-3 mb-1 border-b border-border/60">
-          <h1 className="text-[15px] font-semibold leading-tight">Settings</h1>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Restoran &amp; bot
-          </p>
-        </div>
+      <nav className="sticky top-0 self-start space-y-1">
         {SECTIONS.map((s) => {
           const Icon = s.icon;
           const active = isActive(s.href);
