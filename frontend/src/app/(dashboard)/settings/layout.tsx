@@ -32,8 +32,12 @@ export default function SettingsLayout({
         </p>
       </div>
 
-      <div className="grid grid-cols-[200px_1fr] gap-6">
-        <nav className="space-y-1 self-start">
+      <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
+        {/* sticky top-4 pins the side nav inside the dashboard's scroll
+            container so it stays visible while the right pane scrolls.
+            self-start prevents the grid item from stretching to match
+            the content's height (which would defeat sticky). */}
+        <nav className="sticky top-4 self-start space-y-1">
           {SECTIONS.map((s) => {
             const Icon = s.icon;
             const active = isActive(s.href);
