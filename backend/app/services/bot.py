@@ -1321,6 +1321,34 @@ async def generate_reply(customer_phone: str, message: str,
         if len(lines) > 1:
             bot_extras += "\n".join(lines) + "\n"
 
+    # Training examples — admin-curated few-shot demonstrations. Each
+    # entry is (customer message, ideal bot reply, optional anti-pattern).
+    # Prepended to the system prompt so gpt-4o-mini imitates the style
+    # and adopts the owner's edge-case handling without us paying for
+    # actual fine-tuning. As the admin keeps adding examples, the bot's
+    # behavior tracks their preferences — this is the "semakin sering
+    # dipakai semakin pintar" loop.
+    examples = settings.get("bot_training_examples") or []
+    if isinstance(examples, list) and examples:
+        lines = [
+            "\n\nCONTOH BALASAN IDEAL DARI PEMILIK RESTORAN "
+            "(few-shot — tiru gaya, tone, dan handling-nya secara umum, "
+            "tapi tetap pakai data spesifik customer ini saat membalas):",
+        ]
+        for ex in examples:
+            if not isinstance(ex, dict):
+                continue
+            q = (ex.get("question") or "").strip()
+            a = (ex.get("ideal_answer") or "").strip()
+            anti = (ex.get("anti_pattern") or "").strip()
+            if q and a:
+                lines.append(f"- Customer: {q}")
+                lines.append(f"  Bot ideal: {a}")
+                if anti:
+                    lines.append(f"  Bot HINDARI: {anti}")
+        if len(lines) > 1:
+            bot_extras += "\n".join(lines) + "\n"
+
     biz_name = settings.get("name") or "Restoran"
     system_prompt = (
         _build_system_prompt(biz_name)
