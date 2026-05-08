@@ -24,31 +24,37 @@ export default function SettingsLayout({
     href === "/settings" ? path === "/settings" : path.startsWith(href);
 
   return (
-    // Side nav stays anchored at top-0 of the dashboard's overflow-auto
-    // scroll container. No title block in the nav — the dashboard
-    // breadcrumb above already says "… / Settings / <section>". No
-    // negative margin — sits cleanly inside the scroll container's
-    // py-5 padding instead of fighting with the breadcrumb header.
+    // Side nav anchored at top-0 of the dashboard's overflow-auto
+    // scroll container. Visual style mirrors the main AppSidebar:
+    // mono-label section header, same item padding + icon + text
+    // sizing + active-state colors so it reads as a peer surface,
+    // not a foreign tabs control.
     <div className="grid grid-cols-[200px_1fr] gap-6 items-start">
-      <nav className="sticky top-0 self-start space-y-1">
-        {SECTIONS.map((s) => {
-          const Icon = s.icon;
-          const active = isActive(s.href);
-          return (
-            <Link
-              key={s.href}
-              href={s.href}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-[13px] transition-colors ${
-                active
-                  ? "bg-muted font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-              }`}
-            >
-              <Icon className="size-4" />
-              <span>{s.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="sticky top-0 self-start">
+        <div className="px-2 pb-1 font-mono-label text-[9.5px] tracking-[0.06em] uppercase ink-4">
+          Settings
+        </div>
+        <ul className="space-y-0.5">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const active = isActive(s.href);
+            return (
+              <li key={s.href}>
+                <Link
+                  href={s.href}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors ${
+                    active
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  <span className="flex-1">{s.label}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
       <div className="min-w-0">{children}</div>

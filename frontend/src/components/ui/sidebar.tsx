@@ -138,7 +138,12 @@ function SidebarProvider({
           } as React.CSSProperties
         }
         className={cn(
-          "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+          // h-svh (not min-h-svh) so the wrapper is FIXED at viewport
+          // height — this makes the inner SidebarInset > overflow-auto
+          // the only scroll surface. Without this, tall pages cause the
+          // window itself to scroll, which dragged the dashboard
+          // breadcrumb header and the Settings side nav with it.
+          "group/sidebar-wrapper flex h-svh w-full has-data-[variant=inset]:bg-sidebar",
           className
         )}
         {...props}
