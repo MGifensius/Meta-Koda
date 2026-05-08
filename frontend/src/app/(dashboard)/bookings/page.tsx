@@ -259,8 +259,39 @@ export default function BookingsPage() {
     return matchSearch && matchStatus;
   });
 
-  const todayBookings = filtered.filter((b) => b.date === TODAY);
-  const upcomingBookings = filtered.filter((b) => b.date > TODAY);
+  // Upcoming = today onwards. Past dates only show in the "Semua" tab.
+  const upcomingBookings = filtered.filter((b) => b.date >= TODAY);
+
+  // Group by date so the list reads as "Hari Ini → Besok → Lusa → ..."
+  // with each day's bookings sorted by time. `asc=true` puts the
+  // nearest date first (Mendatang); `false` puts most-recent first
+  // (Semua, where past bookings flow downward).
+  const groupByDate = (
+    rows: Booking[],
+    asc: boolean,
+  ): { date: string; items: Booking[] }[] => {
+    const map = new Map<string, Booking[]>();
+    for (const b of rows) {
+      const arr = map.get(b.date) ?? [];
+      arr.push(b);
+      map.set(b.date, arr);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => a.time.localeCompare(b.time));
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => (asc ? a.localeCompare(b) : b.localeCompare(a)))
+      .map(([date, items]) => ({ date, items }));
+  };
+
+  const dateLabel = (iso: string): string => {
+    const tomorrowIso = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
+    if (iso === TODAY) return "Hari Ini";
+    if (iso === tomorrowIso) return "Besok";
+    return formatDate(iso);
+  };
 
   const reservedCount = bookings.filter((b) => b.status === "reserved").length;
   const occupiedCount = bookings.filter((b) => b.status === "occupied").length;
@@ -653,52 +684,66 @@ export default function BookingsPage() {
         {/* Left: booking tabs */}
         <Tabs defaultValue="upcoming">
           <TabsList>
-            <TabsTrigger value="today">
-              Hari Ini ({todayBookings.length})
-            </TabsTrigger>
             <TabsTrigger value="upcoming">
               Mendatang ({upcomingBookings.length})
             </TabsTrigger>
             <TabsTrigger value="all">Semua ({filtered.length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="today">
-            <div className="grid grid-cols-2 gap-3">
-              {todayBookings.map((b) => (
-                <BookingCard key={b.id} booking={b} />
-              ))}
-              {todayBookings.length === 0 && (
-                <p className="text-[13px] text-muted-foreground col-span-2 py-6 text-center">
-                  Tidak ada booking hari ini.
-                </p>
-              )}
-            </div>
-          </TabsContent>
-
           <TabsContent value="upcoming">
-            <div className="grid grid-cols-2 gap-3">
-              {upcomingBookings.map((b) => (
-                <BookingCard key={b.id} booking={b} />
-              ))}
-              {upcomingBookings.length === 0 && (
-                <p className="text-[13px] text-muted-foreground col-span-2 py-6 text-center">
-                  Tidak ada booking mendatang.
-                </p>
-              )}
-            </div>
+            {upcomingBookings.length === 0 ? (
+              <p className="text-[13px] text-muted-foreground py-6 text-center">
+                Tidak ada booking mendatang.
+              </p>
+            ) : (
+              <div className="space-y-5">
+                {groupByDate(upcomingBookings, true).map((group) => (
+                  <div key={group.date} className="space-y-2">
+                    <div className="flex items-baseline gap-2">
+                      <h3 className="text-[13px] font-semibold">
+                        {dateLabel(group.date)}
+                      </h3>
+                      <span className="text-[11px] text-muted-foreground">
+                        {group.items.length} booking
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {group.items.map((b) => (
+                        <BookingCard key={b.id} booking={b} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="all">
-            <div className="grid grid-cols-2 gap-3">
-              {filtered.map((b) => (
-                <BookingCard key={b.id} booking={b} />
-              ))}
-              {filtered.length === 0 && (
-                <p className="text-[13px] text-muted-foreground col-span-2 py-6 text-center">
-                  Tidak ada booking ditemukan.
-                </p>
-              )}
-            </div>
+            {filtered.length === 0 ? (
+              <p className="text-[13px] text-muted-foreground py-6 text-center">
+                Tidak ada booking ditemukan.
+              </p>
+            ) : (
+              <div className="space-y-5">
+                {groupByDate(filtered, false).map((group) => (
+                  <div key={group.date} className="space-y-2">
+                    <div className="flex items-baseline gap-2">
+                      <h3 className="text-[13px] font-semibold">
+                        {dateLabel(group.date)}
+                      </h3>
+                      <span className="text-[11px] text-muted-foreground">
+                        {group.items.length} booking
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {group.items.map((b) => (
+                        <BookingCard key={b.id} booking={b} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 
